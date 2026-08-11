@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>공정 불량 분석 대시보드 · 품질관리</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔬</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">🔬</div>
+    <div>
+      <h1>공정 불량 분석 · 개선대책 대시보드</h1>
+      <p class="sub">자동차부품 품질관리 — 17개 공정 불량 진단 / 원인·개선조치·개선대책 각 10가지</p>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="chip" id="chipKb">KB —</span>
+    <span class="chip off" id="chipAi">AI 비활성</span>
+    <button class="btn ghost" id="btnSettings">⚙ 설정</button>
+    <button class="btn ghost" id="btnUpdate">⭳ 업데이트</button>
+    <button class="btn ghost" id="btnUsers" hidden>👤 사용자 관리 <span class="cnt" id="cntPending" hidden>0</span></button>
+    <button class="btn ghost" id="btnLogout">로그아웃</button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ============ 입력 패널 ============ -->
+  <section class="panel input-panel">
+    <div class="panel-title">불량 현상 입력</div>
+
+    <div class="field">
+      <label>1. 공정 선택 <small>(미선택 시 설명·사진으로 자동 추정)</small></label>
+      <div class="proc-grid" id="procGrid"></div>
+      <button class="btn small ghost" id="btnClearProc" type="button">공정 선택 해제</button>
+    </div>
+
+    <div class="field">
+      <label for="text">2. 불량 현상 설명</label>
+      <textarea id="text" rows="5" placeholder="예) 사출 제품 게이트 주변에 은백색 줄무늬가 방사형으로 발생. 로트 교체 후부터 발생률 12% 수준. 표면은 매끈하고 손톱에 걸리지 않음."></textarea>
+      <p class="hint">발생 위치 · 형태 · 크기 · 발생률 · 발생 시점을 함께 적으면 정확도가 크게 올라갑니다.</p>
+    </div>
+
+    <div class="field">
+      <label>3. 불량 사진 <small>(선택 · 최대 6장 · 12MB/장)</small></label>
+      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="사진 업로드">
+        <div class="dz-icon">📷</div>
+        <div class="dz-text"><b>사진을 끌어다 놓거나 클릭</b>해서 선택<br>JPG · PNG · GIF · WebP</div>
+      </div>
+      <input type="file" id="fileInput" accept="image/jpeg,image/png,image/gif,image/webp" multiple hidden>
+      <div class="thumbs" id="thumbs"></div>
+    </div>
+
+    <div class="field">
+      <label>4. 관찰된 시각 특징 <small>(해당 항목 클릭)</small></label>
+      <div class="cues" id="cues"><small>공정을 먼저 선택하세요.</small></div>
+    </div>
+
+    <div class="field">
+      <label>5. 분석 옵션</label>
+      <div class="toggles">
+        <label class="switch"><input type="checkbox" id="useAI" checked><span></span> AI 사진·현상 판독 (Gemini)</label>
+        <label class="switch"><input type="checkbox" id="useWeb" checked><span></span> 인터넷 최신 기술자료 조사</label>
+      </div>
+      <p class="note" id="aiNote">API 키가 없으면 내장 지식베이스만으로 분석합니다(오프라인 동작). 이 경우에도 원인·개선조치·개선대책은 각 10가지가 제공됩니다.</p>
+    </div>
+
+    <button class="btn primary big" id="btnAnalyze">🔍 불량 분석 시작</button>
+  </section>
+
+  <!-- ============ 결과 패널 ============ -->
+  <section class="panel">
+    <div class="tabs" id="viewTabs">
+      <button class="tab active" data-view="analyze">분석 결과</button>
+      <button class="tab" data-view="dash">대시보드</button>
+      <button class="tab" data-view="hist">이력 <span class="cnt" id="cntHist">0</span></button>
+      <button class="tab" data-view="kb">지식베이스</button>
+    </div>
+
+    <!-- 분석 결과 -->
+    <div class="view" id="viewAnalyze">
+      <div id="resultBox">
+        <div class="empty">
+          <div class="empty-icon">🧪</div>
+          <h3>불량 현상을 입력하고 분석을 시작하세요</h3>
+          <p>공정별 불량 지식베이스가 불량명을 판정하고,<br>원인 · 개선조치 · 개선대책을 각 10가지씩 정리합니다.</p>
+          <div class="empty-stats">
+            <div class="stat"><b id="stProc">17</b><span>관리 공정</span></div>
+            <div class="stat"><b id="stDef">—</b><span>등록 불량항목</span></div>
+            <div class="stat"><b>10 / 10 / 10</b><span>원인 / 조치 / 대책</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 대시보드 -->
+    <div class="view" id="viewDash" hidden>
+      <div class="kpis" id="kpis"></div>
+      <div class="card">
+        <h4>최근 14일 분석 건수</h4>
+        <div class="spark" id="spark"></div>
+        <div class="spark-x" id="sparkX"></div>
+      </div>
+      <div class="card">
+        <h4>공정별 발생 현황</h4>
+        <div class="bars" id="barProc"><small>데이터가 없습니다.</small></div>
+      </div>
+      <div class="card">
+        <h4>근본원인 4M1E 분포</h4>
+        <div class="bars" id="barCat"><small>데이터가 없습니다.</small></div>
+      </div>
+      <div class="card">
+        <h4>다발 불량 TOP 10</h4>
+        <div class="bars" id="barDefect"><small>데이터가 없습니다.</small></div>
+      </div>
+      <div class="result-actions">
+        <button class="btn" id="btnRefreshDash">↻ 새로고침</button>
+        <a class="btn" href="/api/export.csv">⭳ 전체 이력 CSV</a>
+      </div>
+    </div>
+
+    <!-- 이력 -->
+    <div class="view" id="viewHist" hidden>
+      <div class="filters">
+        <select id="fProc"><option value="">전체 공정</option></select>
+        <select id="fSev">
+          <option value="">전체 심각도</option>
+          <option value="critical">치명</option>
+          <option value="high">중대</option>
+          <option value="medium">경미</option>
+          <option value="low">관찰</option>
+        </select>
+        <select id="fLevel">
+          <option value="">전체 판정</option>
+          <option value="critical">공정 이상</option>
+          <option value="warning">이상 의심</option>
+          <option value="watch">경향 관리</option>
+          <option value="ok">산발 불량</option>
+        </select>
+        <select id="fStatus">
+          <option value="">전체 상태</option>
+          <option>조치중</option><option>검증중</option><option>완료</option><option>보류</option>
+        </select>
+        <input type="text" id="fQ" placeholder="불량명 · 내용 검색">
+        <button class="btn" id="btnHistSearch">검색</button>
+        <a class="btn" href="/api/export.csv">⭳ CSV</a>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>일시</th><th>사진</th><th>공정</th><th>불량명</th><th>심각도</th><th>판정</th><th>신뢰도</th><th>상태</th><th></th></tr>
+          </thead>
+          <tbody id="histBody"><tr><td colspan="9"><small>이력이 없습니다.</small></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 지식베이스 -->
+    <div class="view" id="viewKb" hidden>
+      <p class="note">내장 지식베이스에 등록된 공정별 불량 항목입니다. 항목을 클릭하면 해당 불량의 원인 10 · 개선조치 10 · 개선대책 10을 바로 확인할 수 있습니다.</p>
+      <div id="kbList" style="margin-top:14px"></div>
+    </div>
+  </section>
+</div>
+
+<!-- ============ 설정 모달 ============ -->
+<div class="modal" id="mdSettings" hidden>
+  <div class="modal-box">
+    <header><h3>설정</h3><button class="x" data-close="mdSettings">&times;</button></header>
+    <div class="modal-body">
+      <div class="field">
+        <label for="cfgKey">Gemini API 키 <small>(AIzaSy…)</small></label>
+        <input type="password" id="cfgKey" placeholder="AIzaSy...">
+        <p class="hint"><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>에서 신용카드 없이 무료로 발급받을 수 있습니다. 한 번만 등록해두면 그 다음부터는 인터넷 연결만으로 사진 판독·인터넷 조사가 자동 동작합니다. 비워두면 내장 지식베이스로만 분석합니다. 키는 이 PC의 <code>data/config.json</code> 에만 저장됩니다.</p>
+      </div>
+      <div class="field two">
+        <div>
+          <label for="cfgModel">분석 모델</label>
+          <select id="cfgModel"></select>
+        </div>
+        <div>
+          <label for="cfgEffort">분석 심도</label>
+          <select id="cfgEffort"></select>
+        </div>
+      </div>
+      <div class="field">
+        <label>기본 동작</label>
+        <div class="toggles">
+          <label class="switch"><input type="checkbox" id="cfgUseAI"><span></span> AI 판독 기본 사용</label>
+          <label class="switch"><input type="checkbox" id="cfgUseWeb"><span></span> 인터넷 조사 기본 사용</label>
+        </div>
+      </div>
+      <div class="field two">
+        <div><label for="cfgLine">라인 / 공장</label><input type="text" id="cfgLine" placeholder="예) 1공장 사출 3라인"></div>
+        <div><label for="cfgInspector">담당자</label><input type="text" id="cfgInspector" placeholder="예) 정준상"></div>
+      </div>
+      <div class="field">
+        <label for="cfgUpdUrl">업데이트 매니페스트 URL <small>(지식베이스 자동 갱신)</small></label>
+        <input type="url" id="cfgUpdUrl" placeholder="https://example.com/kb-manifest.json">
+      </div>
+      <div class="field" id="fldNotify" hidden>
+        <label>가입 승인요청 알림 이메일 <small>(관리자 전용)</small></label>
+        <div class="field two">
+          <div><label for="cfgSmtpUser">발신 Gmail 주소</label><input type="email" id="cfgSmtpUser" placeholder="you@gmail.com"></div>
+          <div><label for="cfgSmtpPass">Gmail 앱 비밀번호</label><input type="password" id="cfgSmtpPass" placeholder="16자리 앱 비밀번호"></div>
+        </div>
+        <label for="cfgNotifyEmail">알림 받을 이메일</label>
+        <input type="email" id="cfgNotifyEmail" placeholder="admin@example.com">
+        <p class="hint">Google 계정 → 보안 → 2단계 인증 → 앱 비밀번호에서 발급받은 값을 입력하세요(로그인 비밀번호 아님). 설정해두면 새 사용 신청이 들어올 때마다 이메일로 알려드립니다.</p>
+      </div>
+    </div>
+    <footer>
+      <button class="btn" data-close="mdSettings">취소</button>
+      <button class="btn primary" id="btnSaveCfg">저장</button>
+    </footer>
+  </div>
+</div>
+
+<!-- ============ 업데이트 모달 ============ -->
+<div class="modal" id="mdUpdate" hidden>
+  <div class="modal-box">
+    <header><h3>지식베이스 업데이트</h3><button class="x" data-close="mdUpdate">&times;</button></header>
+    <div class="modal-body" id="updBody"><small>불러오는 중…</small></div>
+    <footer>
+      <button class="btn" id="btnUpdCheck">🌐 새 버전 확인</button>
+      <button class="btn primary" id="btnUpdApply" disabled>⭳ 업데이트 적용</button>
+      <button class="btn" data-close="mdUpdate">닫기</button>
+    </footer>
+  </div>
+</div>
+
+<!-- ============ 사용자 관리 모달 (관리자 전용) ============ -->
+<div class="modal" id="mdUsers" hidden>
+  <div class="modal-box wide">
+    <header><h3>사용자 관리</h3><button class="x" data-close="mdUsers">&times;</button></header>
+    <div class="tabs" id="usersTabs" style="margin:0 18px">
+      <button class="tab active" data-utab="signup">가입 승인</button>
+      <button class="tab" data-utab="activity">활동 이력</button>
+    </div>
+    <div class="modal-body" id="usersBody" data-utab-body="signup"><small>불러오는 중…</small></div>
+    <div class="modal-body" id="activityBody" data-utab-body="activity" hidden>
+      <div class="filters" style="margin-bottom:12px">
+        <select id="fActUser"><option value="">전체 사용자</option></select>
+        <select id="fActAction">
+          <option value="">전체 활동</option>
+          <option value="login">로그인</option>
+          <option value="analyze">불량 분석</option>
+          <option value="history_view">이력 조회</option>
+          <option value="item_detail">상세정보 조회</option>
+          <option value="kb_view">지식베이스 조회</option>
+        </select>
+        <button class="btn" id="btnActFilter">검색</button>
+      </div>
+      <div id="activityResults"><small>불러오는 중…</small></div>
+    </div>
+    <footer>
+      <button class="btn" id="btnUsersRefresh">↻ 새로고침</button>
+      <button class="btn" data-close="mdUsers">닫기</button>
+    </footer>
+  </div>
+</div>
+
+<!-- ============ 항목 상세정보 모달 ============ -->
+<div class="modal" id="mdDetail" hidden>
+  <div class="modal-box wide">
+    <header><h3 id="detailTitle">상세 정보</h3><button class="x" data-close="mdDetail">&times;</button></header>
+    <div class="modal-body" id="detailBody"><small>불러오는 중…</small></div>
+    <footer>
+      <button class="btn" data-close="mdDetail">닫기</button>
+    </footer>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
