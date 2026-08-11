@@ -62,6 +62,21 @@ if [ -d "$APP_DIR/.git" ]; then
   git config --global --add safe.directory "$APP_DIR"
   git -C "$APP_DIR" fetch --quiet origin
   git -C "$APP_DIR" reset --hard --quiet "$(git -C "$APP_DIR" rev-parse origin/HEAD 2>/dev/null || git -C "$APP_DIR" rev-parse origin/master)"
+elif [ -d "$APP_DIR" ] && [ -n "$(ls -A "$APP_DIR" 2>/dev/null)" ]; then
+  echo "    기존(구버전 tar 업로드 방식) 설치가 있습니다 — git 저장소로 전환합니다."
+  echo "    (data/ · kb/ · .env 는 그대로 보존됩니다)"
+  BACKUP_DIR="${APP_DIR}.bak-$(date +%s)"
+  mv "$APP_DIR" "$BACKUP_DIR"
+  git clone --quiet "$REPO_URL" "$APP_DIR"
+  git config --global --add safe.directory "$APP_DIR"
+  for d in data kb; do
+    if [ -d "$BACKUP_DIR/$d" ]; then
+      rm -rf "$APP_DIR/$d"
+      cp -r "$BACKUP_DIR/$d" "$APP_DIR/$d"
+    fi
+  done
+  [ -f "$BACKUP_DIR/.env" ] && cp "$BACKUP_DIR/.env" "$APP_DIR/.env"
+  echo "    이전 설치는 백업으로 남겨두었습니다: $BACKUP_DIR (문제 없으면 나중에 삭제하셔도 됩니다)"
 else
   mkdir -p "$APP_DIR"
   git clone --quiet "$REPO_URL" "$APP_DIR"
