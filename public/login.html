@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>로그인 · 품질관리 대시보드</title>
+<title data-i18n>로그인 · 품질관리 대시보드</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔬</text></svg>">
 <style>
   :root { --brand: #0f3460; --brand-2: #1b5c96; --ink: #1b2532; --ink-2: #55637a; --line: #dfe4ec; --radius: 10px; }
@@ -11,6 +11,11 @@
   body {
     margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
     background: linear-gradient(160deg, #0f3460, #1b5c96); font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+    position: relative;
+  }
+  .langBtn {
+    position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,.15); color: #fff; border: 1px solid rgba(255,255,255,.4);
+    border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; font-weight: 700;
   }
   .box {
     background: #fff; border-radius: 14px; padding: 34px 32px; width: 100%; max-width: 360px;
@@ -39,40 +44,88 @@
 </style>
 </head>
 <body>
+  <button class="langBtn" id="btnLang" type="button">EN</button>
   <div class="box">
     <div class="logo">🔬</div>
-    <h1>공정 불량 분석 대시보드</h1>
+    <h1 data-i18n>공정 불량 분석 대시보드</h1>
 
     <!-- 로그인 -->
     <form id="fLogin">
-      <p class="sub">사내 전용 — 로그인이 필요합니다</p>
-      <label for="u">아이디</label>
+      <p class="sub" data-i18n>사내 전용 — 로그인이 필요합니다</p>
+      <label for="u" data-i18n>아이디</label>
       <input id="u" name="username" autocomplete="username" required autofocus>
-      <label for="p">비밀번호</label>
+      <label for="p" data-i18n>비밀번호</label>
       <input id="p" name="password" type="password" autocomplete="current-password" required>
       <div class="err" id="loginErr"></div>
-      <button id="btnLogin" type="submit">로그인</button>
-      <div class="switch-link"><a id="toSignup">계정이 없으신가요? 사용 신청</a></div>
+      <button id="btnLogin" type="submit" data-i18n>로그인</button>
+      <div class="switch-link"><a id="toSignup" data-i18n>계정이 없으신가요? 사용 신청</a></div>
     </form>
 
     <!-- 사용 신청 -->
     <form id="fSignup" hidden>
-      <p class="sub">사용 신청 — 관리자 승인 후 로그인할 수 있습니다</p>
-      <label for="su">아이디 <small>(영문·숫자 3~32자)</small></label>
+      <p class="sub" data-i18n>사용 신청 — 관리자 승인 후 로그인할 수 있습니다</p>
+      <label for="su"><span data-i18n>아이디</span> <small data-i18n>(영문·숫자 3~32자)</small></label>
       <input id="su" name="username" autocomplete="username" required>
-      <label for="sp">비밀번호 <small>(8자 이상)</small></label>
+      <label for="sp"><span data-i18n>비밀번호</span> <small data-i18n>(8자 이상)</small></label>
       <input id="sp" name="password" type="password" autocomplete="new-password" required minlength="8">
-      <label for="sp2">비밀번호 확인</label>
+      <label for="sp2" data-i18n>비밀번호 확인</label>
       <input id="sp2" name="password2" type="password" autocomplete="new-password" required minlength="8">
-      <label for="sn">소속·이름 <small>(선택, 승인 시 참고용)</small></label>
-      <input id="sn" name="note" placeholder="예) 사출팀 정준상">
+      <label for="sn"><span data-i18n>소속·이름</span> <small data-i18n>(선택, 승인 시 참고용)</small></label>
+      <input id="sn" name="note" data-i18n-ph="예) 사출팀 정준상" placeholder="예) 사출팀 정준상">
       <div class="err" id="signupErr"></div>
       <div class="ok" id="signupOk" hidden></div>
-      <button id="btnSignup" type="submit">사용 신청</button>
-      <div class="switch-link"><a id="toLogin">이미 계정이 있으신가요? 로그인</a></div>
+      <button id="btnSignup" type="submit" data-i18n>사용 신청</button>
+      <div class="switch-link"><a id="toLogin" data-i18n>이미 계정이 있으신가요? 로그인</a></div>
     </form>
   </div>
 <script>
+  const I18N_EN = {
+    '로그인 · 품질관리 대시보드': 'Login · Quality Management Dashboard',
+    '공정 불량 분석 대시보드': 'Defect Analysis Dashboard',
+    '사내 전용 — 로그인이 필요합니다': 'Internal use only — Login required',
+    '아이디': 'Username',
+    '비밀번호': 'Password',
+    '로그인': 'Log In',
+    '계정이 없으신가요? 사용 신청': "Don't have an account? Request access",
+    '사용 신청 — 관리자 승인 후 로그인할 수 있습니다': 'Request Access — you can log in after admin approval',
+    '(영문·숫자 3~32자)': '(letters/numbers, 3-32 chars)',
+    '(8자 이상)': '(8+ characters)',
+    '비밀번호 확인': 'Confirm Password',
+    '소속·이름': 'Department/Name',
+    '(선택, 승인 시 참고용)': '(optional, for reference at approval)',
+    '예) 사출팀 정준상': 'e.g. Injection Team, Jane Doe',
+    '사용 신청': 'Request Access',
+    '이미 계정이 있으신가요? 로그인': 'Already have an account? Log in',
+    '확인 중…': 'Checking…',
+    '로그인 실패': 'Login failed',
+    '비밀번호가 서로 다릅니다': 'Passwords do not match',
+    '신청 중…': 'Submitting…',
+    '신청 실패': 'Request failed'
+  };
+
+  let LANG = localStorage.getItem('qc_lang') || 'ko';
+  function t(ko) {
+    if (LANG !== 'en') return ko;
+    return I18N_EN[ko] !== undefined ? I18N_EN[ko] : ko;
+  }
+  function applyI18n() {
+    document.documentElement.lang = LANG;
+    document.getElementById('btnLang').textContent = LANG === 'en' ? '한국어' : 'EN';
+    document.querySelectorAll('[data-i18n]').forEach((el) => {
+      if (el.dataset.i18nOrig === undefined) el.dataset.i18nOrig = el.textContent;
+      el.textContent = t(el.dataset.i18nOrig);
+    });
+    document.querySelectorAll('[data-i18n-ph]').forEach((el) => {
+      el.placeholder = t(el.dataset.i18nPh);
+    });
+  }
+  document.getElementById('btnLang').addEventListener('click', () => {
+    LANG = LANG === 'en' ? 'ko' : 'en';
+    localStorage.setItem('qc_lang', LANG);
+    applyI18n();
+  });
+  applyI18n();
+
   const fLogin = document.getElementById('fLogin');
   const fSignup = document.getElementById('fSignup');
 
@@ -91,7 +144,7 @@
     const btn = document.getElementById('btnLogin');
     err.textContent = '';
     btn.disabled = true;
-    btn.textContent = '확인 중…';
+    btn.textContent = t('확인 중…');
     try {
       const res = await fetch('/api/login', {
         method: 'POST',
@@ -99,12 +152,12 @@
         body: JSON.stringify({ username: document.getElementById('u').value, password: document.getElementById('p').value })
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error || '로그인 실패');
+      if (!res.ok) throw new Error(body.error || t('로그인 실패'));
       location.href = '/';
     } catch (e2) {
       err.textContent = e2.message;
       btn.disabled = false;
-      btn.textContent = '로그인';
+      btn.textContent = t('로그인');
     }
   });
 
@@ -118,19 +171,19 @@
     const password = document.getElementById('sp').value;
     const password2 = document.getElementById('sp2').value;
     if (password !== password2) {
-      err.textContent = '비밀번호가 서로 다릅니다';
+      err.textContent = t('비밀번호가 서로 다릅니다');
       return;
     }
     btn.disabled = true;
-    btn.textContent = '신청 중…';
+    btn.textContent = t('신청 중…');
     try {
       const res = await fetch('/api/signup', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ username: document.getElementById('su').value, password, note: document.getElementById('sn').value })
+        body: JSON.stringify({ username: document.getElementById('su').value, password, note: document.getElementById('sn').value, lang: LANG })
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error || '신청 실패');
+      if (!res.ok) throw new Error(body.error || t('신청 실패'));
       ok.hidden = false;
       ok.textContent = body.message;
       fSignup.reset();
@@ -138,7 +191,7 @@
       err.textContent = e2.message;
     } finally {
       btn.disabled = false;
-      btn.textContent = '사용 신청';
+      btn.textContent = t('사용 신청');
     }
   });
 </script>

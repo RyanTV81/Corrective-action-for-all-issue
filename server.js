@@ -199,6 +199,7 @@ app.post(
     const cfg = config.get();
     const useAI = (req.body.useAI === undefined ? cfg.useAI : truthy(req.body.useAI)) && ai.enabled();
     const useWeb = req.body.useWeb === undefined ? cfg.useWeb : truthy(req.body.useWeb);
+    const lang = req.body.lang === 'en' ? 'en' : 'ko';
 
     const result = await analyzer.analyze({
       text,
@@ -206,13 +207,14 @@ app.post(
       cues: parseArray(req.body.cues),
       images: images.map((i) => ({ data: i.data, mediaType: i.mediaType })),
       useAI,
-      useWeb
+      useWeb,
+      lang
     });
 
     result.images = images.map((i) => ({ url: i.url, name: i.name, bytes: i.bytes }));
 
     // 공정 문제 여부 판정
-    result.judgement = judge(result);
+    result.judgement = judge(result, lang);
 
     // 이력 저장 (대시보드 통계·추적용)
     if (req.body.save !== 'false') {
@@ -243,7 +245,7 @@ app.post(
     if (!ai.enabled()) {
       return res.status(400).json({ error: 'API 키가 없어 인터넷 조사를 사용할 수 없습니다. [설정]에서 등록하세요.' });
     }
-    const { defectName, processId, note } = req.body || {};
+    const { defectName, processId, note, lang } = req.body || {};
     if (!defectName) return res.status(400).json({ error: 'defectName 이 필요합니다' });
 
     const proc = processId ? kb.getProcess(processId) : null;
@@ -251,7 +253,8 @@ app.post(
       defectName,
       processName: proc ? proc.name : '',
       description: '',
-      note: note || ''
+      note: note || '',
+      lang: lang === 'en' ? 'en' : 'ko'
     });
     res.json({ ok: true, ...out });
   })
@@ -284,7 +287,8 @@ app.post(
           kind,
           rationale: b.rationale || '',
           defectName: b.defectName || '',
-          processName: b.processName || ''
+          processName: b.processName || '',
+          lang: b.lang === 'en' ? 'en' : 'ko'
         });
       } catch (e) {
         aiError = e.message;
