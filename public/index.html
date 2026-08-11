@@ -240,6 +240,7 @@
     <div class="tabs" id="usersTabs" style="margin:0 18px">
       <button class="tab active" data-utab="signup">가입 승인</button>
       <button class="tab" data-utab="activity">활동 이력</button>
+      <button class="tab" data-utab="feedback">학습 피드백 <span class="cnt" id="cntFbPending" hidden>0</span></button>
     </div>
     <div class="modal-body" id="usersBody" data-utab-body="signup"><small>불러오는 중…</small></div>
     <div class="modal-body" id="activityBody" data-utab-body="activity" hidden>
@@ -257,9 +258,52 @@
       </div>
       <div id="activityResults"><small>불러오는 중…</small></div>
     </div>
+    <div class="modal-body" id="feedbackBody" data-utab-body="feedback" hidden>
+      <p class="note" style="margin-bottom:12px">사용자가 확인·수정·제안한 판정입니다. 확정하면 다음 사진판독 시 참고자료로 자동 활용됩니다.</p>
+      <div id="feedbackResults"><small>불러오는 중…</small></div>
+    </div>
     <footer>
       <button class="btn" id="btnUsersRefresh">↻ 새로고침</button>
       <button class="btn" data-close="mdUsers">닫기</button>
+    </footer>
+  </div>
+</div>
+
+<!-- ============ 신규 불량 지식베이스 등록 모달 (관리자 전용) ============ -->
+<div class="modal" id="mdKbAdd" hidden>
+  <div class="modal-box wide">
+    <header><h3>지식베이스에 새 불량 등록</h3><button class="x" data-close="mdKbAdd">&times;</button></header>
+    <div class="modal-body">
+      <div class="field two">
+        <div>
+          <label for="kaProcess">공정</label>
+          <select id="kaProcess"></select>
+        </div>
+        <div>
+          <label for="kaSeverity">심각도</label>
+          <select id="kaSeverity">
+            <option value="critical">치명</option>
+            <option value="high">중대</option>
+            <option value="medium" selected>경미</option>
+            <option value="low">관찰</option>
+          </select>
+        </div>
+      </div>
+      <div class="field two">
+        <div><label for="kaName">불량명(국문)</label><input type="text" id="kaName"></div>
+        <div><label for="kaNameEn">불량명(영문)</label><input type="text" id="kaNameEn"></div>
+      </div>
+      <div class="field"><label for="kaDesc">설명</label><textarea id="kaDesc" rows="2"></textarea></div>
+      <div class="field"><label for="kaKeywords">검색 키워드 <small>(쉼표로 구분)</small></label><input type="text" id="kaKeywords"></div>
+      <div class="field"><label for="kaCues">시각 특징 <small>(쉼표로 구분)</small></label><input type="text" id="kaCues"></div>
+      <div class="field"><label for="kaDetect">검출 방법</label><input type="text" id="kaDetect"></div>
+      <div class="field"><label for="kaCauses">발생 원인 <small>(한 줄에 하나씩)</small></label><textarea id="kaCauses" rows="4"></textarea></div>
+      <div class="field"><label for="kaActions">개선 조치 <small>(한 줄에 하나씩)</small></label><textarea id="kaActions" rows="4"></textarea></div>
+      <div class="field"><label for="kaMeasures">개선 대책 <small>(한 줄에 하나씩)</small></label><textarea id="kaMeasures" rows="4"></textarea></div>
+    </div>
+    <footer>
+      <button class="btn" data-close="mdKbAdd">취소</button>
+      <button class="btn primary" id="btnKaSubmit">지식베이스에 추가</button>
     </footer>
   </div>
 </div>
@@ -271,6 +315,43 @@
     <div class="modal-body" id="detailBody"><small>불러오는 중…</small></div>
     <footer>
       <button class="btn" data-close="mdDetail">닫기</button>
+    </footer>
+  </div>
+</div>
+
+<!-- ============ 판정 교정(학습 피드백) 모달 ============ -->
+<div class="modal" id="mdFeedback" hidden>
+  <div class="modal-box">
+    <header><h3>판정 수정 · 학습 데이터 제공</h3><button class="x" data-close="mdFeedback">&times;</button></header>
+    <div class="modal-body">
+      <p class="note">촬영 각도·조명 때문에 AI가 다르게 볼 수 있습니다. 실제 정답을 알려주시면 다음 분석부터 참고합니다.</p>
+      <div class="field">
+        <label>실제 불량은 무엇인가요?</label>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:400;margin-bottom:6px">
+          <input type="radio" name="fbKind" id="fbKindCorrect" value="correct" checked> 목록에서 선택
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:400">
+          <input type="radio" name="fbKind" id="fbKindNew" value="new_defect"> 목록에 없음 (신규 불량 제안)
+        </label>
+      </div>
+      <div class="field" id="fbCorrectField">
+        <label for="fbDefectSelect">실제 불량 선택</label>
+        <select id="fbDefectSelect"></select>
+      </div>
+      <div class="field" id="fbNewField" hidden>
+        <label for="fbNewName">신규 불량명</label>
+        <input type="text" id="fbNewName" placeholder="예) OO 자국">
+        <label for="fbNewDesc" style="margin-top:8px">설명 <small>(선택)</small></label>
+        <textarea id="fbNewDesc" rows="2" placeholder="어떤 형태·위치의 불량인지 설명"></textarea>
+      </div>
+      <div class="field">
+        <label for="fbNote">촬영 조건 메모 <small>(각도·조명 등 — 오판정 원인 파악에 중요)</small></label>
+        <textarea id="fbNote" rows="2" placeholder="예) 역광 촬영, 형광등 아래 저각도 촬영 등"></textarea>
+      </div>
+    </div>
+    <footer>
+      <button class="btn" data-close="mdFeedback">취소</button>
+      <button class="btn primary" id="btnFbSubmit">제출</button>
     </footer>
   </div>
 </div>

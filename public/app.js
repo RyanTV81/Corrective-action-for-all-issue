@@ -92,6 +92,7 @@ async function init() {
     if (me.role === 'admin') {
       $('#btnUsers').hidden = false;
       refreshPendingCount();
+      refreshFbPendingCount();
     }
   } catch (e) {
     toast('초기화 실패: ' + e.message, true);
@@ -336,7 +337,18 @@ function renderResult(r) {
       <span class="meta">분석 소요 ${((r.elapsedMs || 0) / 1000).toFixed(1)}초${r.web && r.web.model ? ' · ' + esc(r.web.model) : ''}</span>
     </div>`;
 
-  $('#resultBox').innerHTML = warn + verdict + tabs + bodies + actions;
+  const fbCard = r.recordId
+    ? `<div class="card" id="fbPrompt">
+        <h4>판정이 정확한가요?</h4>
+        <p class="note" style="margin-bottom:10px">촬영 각도·조명 때문에 AI가 다르게 볼 수 있습니다. 확인해주시면 다음 분석부터 참고합니다.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" id="btnFbConfirm">👍 정확함</button>
+          <button class="btn" id="btnFbCorrect">✏️ 다릅니다 — 수정하기</button>
+        </div>
+      </div>`
+    : '';
+
+  $('#resultBox').innerHTML = warn + verdict + tabs + bodies + actions + fbCard;
 
   $$('#resTabs .tab').forEach((b) =>
     b.addEventListener('click', () => {
@@ -355,6 +367,11 @@ function renderResult(r) {
       }
     });
   });
+
+  if (r.recordId) {
+    $('#btnFbConfirm').addEventListener('click', submitFeedbackConfirm);
+    $('#btnFbCorrect').addEventListener('click', openFeedbackCorrect);
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -966,7 +983,8 @@ function switchUsersTab(tab) {
   $$('#usersTabs .tab').forEach((b) => b.classList.toggle('active', b.dataset.utab === tab));
   $$('#mdUsers [data-utab-body]').forEach((el) => (el.hidden = el.dataset.utabBody !== tab));
   if (tab === 'signup') loadUsers();
-  else loadActivity();
+  else if (tab === 'activity') loadActivity();
+  else loadFeedback();
 }
 
 async function loadActivity() {
@@ -1076,6 +1094,257 @@ async function applyUpdate() {
 }
 
 /* ------------------------------------------------------------------ */
+/* 판정 교정(학습 피드백) — 분석결과 화면                                 */
+/* ------------------------------------------------------------------ */
+
+async function submitFeedbackConfirm() {
+  const r = state.result;
+  if (!r || !r.recordId) {
+    toast('저장된 이력이 없어 피드백을 남길 수 없습니다.', true);
+    return;
+  }
+  try {
+    await api('/api/feedback', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        recordId: r.recordId,
+        kind: 'confirm',
+        processId: r.process ? r.process.id : null,
+        processName: r.process ? r.process.name : '',
+        originalDefectId: r.defect ? r.defect.id : null,
+        originalDefectName: (r.defect && r.defect.name) || (r.vision && r.vision.defectName) || ''
+      })
+    });
+    toast('감사합니다! 판정 확인이 기록되었습니다.');
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+function toggleFbKind() {
+  const isNew = $('#fbKindNew').checked;
+  $('#fbCorrectField').hidden = isNew;
+  $('#fbNewField').hidden = !isNew;
+}
+
+async function openFeedbackCorrect() {
+  const r = state.result;
+  if (!r || !r.recordId) {
+    toast('저장된 이력이 없어 피드백을 남길 수 없습니다.', true);
+    return;
+  }
+  openModal('mdFeedback');
+  $('#fbNote').value = '';
+  $('#fbNewName').value = '';
+  $('#fbNewDesc').value = '';
+
+  const procId = r.process ? r.process.id : null;
+  $('#fbKindCorrect').disabled = !procId;
+  if (!procId) $('#fbKindNew').checked = true;
+  else $('#fbKindCorrect').checked = true;
+  toggleFbKind();
+
+  const sel = $('#fbDefectSelect');
+  if (procId) {
+    sel.innerHTML = '<option value="">불러오는 중…</option>';
+    try {
+      const p = await api('/api/process/' + procId);
+      sel.innerHTML = p.defects.map((d) => `<option value="${d.id}" data-name="${esc(d.name)}">${esc(d.name)}</option>`).join('');
+    } catch (e) {
+      sel.innerHTML = '<option value="">불러오지 못함</option>';
+    }
+  } else {
+    sel.innerHTML = '<option value="">(공정 미판정 — 신규 불량으로 제안하세요)</option>';
+  }
+}
+
+async function submitFeedbackCorrection() {
+  const r = state.result;
+  const isNew = $('#fbKindNew').checked;
+  const body = {
+    recordId: r.recordId,
+    kind: isNew ? 'new_defect' : 'correct',
+    processId: r.process ? r.process.id : null,
+    processName: r.process ? r.process.name : '',
+    originalDefectId: r.defect ? r.defect.id : null,
+    originalDefectName: (r.defect && r.defect.name) || (r.vision && r.vision.defectName) || '',
+    note: $('#fbNote').value.trim(),
+    visualCues: r.vision ? r.vision.visualCues || [] : []
+  };
+  if (isNew) {
+    const name = $('#fbNewName').value.trim();
+    if (!name) {
+      toast('신규 불량명을 입력하세요.', true);
+      return;
+    }
+    body.newDefectName = name;
+    body.newDefectDescription = $('#fbNewDesc').value.trim();
+  } else {
+    const opt = $('#fbDefectSelect').selectedOptions[0];
+    if (!opt || !opt.value) {
+      toast('실제 불량을 선택하세요.', true);
+      return;
+    }
+    body.correctedDefectId = opt.value;
+    body.correctedDefectName = opt.dataset.name;
+  }
+  try {
+    await api('/api/feedback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    toast('감사합니다! 관리자 확인 후 학습에 반영됩니다.');
+    closeModal('mdFeedback');
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* 학습 피드백 검토 (관리자 전용)                                        */
+/* ------------------------------------------------------------------ */
+
+const FB_KIND_KO = { confirm: '확인', correct: '수정', new_defect: '신규 제안' };
+const FB_STATUS_KO = { pending: '검토 대기', confirmed: '확정됨', rejected: '거부됨' };
+
+async function refreshFbPendingCount() {
+  try {
+    const { items } = await api('/api/admin/feedback?status=pending');
+    const badge = $('#cntFbPending');
+    badge.hidden = items.length === 0;
+    badge.textContent = items.length;
+  } catch (e) {
+    /* 관리자가 아니면 조용히 무시 */
+  }
+}
+
+async function loadFeedback() {
+  const box = $('#feedbackResults');
+  box.innerHTML = '<small>불러오는 중…</small>';
+  try {
+    const { items, total } = await api('/api/admin/feedback?limit=200');
+    renderFeedback(items, total);
+  } catch (e) {
+    box.innerHTML = `<small>불러오지 못했습니다: ${esc(e.message)}</small>`;
+  }
+}
+
+function renderFeedback(items, total) {
+  const box = $('#feedbackResults');
+  if (!items.length) {
+    box.innerHTML = '<p class="note">피드백이 없습니다.</p>';
+    return;
+  }
+  const order = { pending: 0, confirmed: 1, rejected: 2 };
+  const sorted = [...items].sort((a, b) => order[a.status] - order[b.status] || (a.at < b.at ? 1 : -1));
+
+  box.innerHTML = `<div class="item-list">${sorted
+    .map((x) => {
+      const target = x.kind === 'new_defect' ? x.newDefectName : x.kind === 'correct' ? x.correctedDefectName : '(확인만)';
+      return `<div class="item" data-id="${esc(x.id)}" style="align-items:flex-start">
+        <div class="item-main">
+          <div class="item-text">[${FB_KIND_KO[x.kind]}] ${esc(x.originalDefectName || '미판정')} → ${esc(target)}</div>
+          <div class="item-sub">${esc(x.submittedBy)} · ${esc(x.processName || '-')} · ${fmtDate(x.at)}${x.note ? ' · 메모: ' + esc(x.note) : ''}</div>
+          <div class="item-meta">
+            <span class="tag ${x.status === 'confirmed' ? 'proc' : x.status === 'rejected' ? 'high' : 'medium'}">${FB_STATUS_KO[x.status]}</span>
+            ${x.addedToKb ? '<span class="badge ai">KB 등록됨</span>' : ''}
+          </div>
+        </div>
+        <div class="nowrap" style="display:flex;flex-direction:column;gap:4px">
+          ${x.status !== 'confirmed' ? '<button class="btn small fbConfirm" style="width:auto;padding:4px 9px">확정</button>' : ''}
+          ${x.status !== 'rejected' ? '<button class="btn small fbReject" style="width:auto;padding:4px 9px">거부</button>' : ''}
+          ${x.kind === 'new_defect' && !x.addedToKb ? '<button class="btn small primary fbAddKb" style="width:auto;padding:4px 9px">KB 등록</button>' : ''}
+        </div>
+      </div>`;
+    })
+    .join('')}</div>
+    <p class="note" style="margin-top:10px">최근 ${items.length}건 (전체 ${total}건 중)</p>`;
+
+  $$('.fbConfirm', box).forEach((b) => b.addEventListener('click', (e) => decideFeedback(e.target.closest('[data-id]').dataset.id, 'confirmed')));
+  $$('.fbReject', box).forEach((b) => b.addEventListener('click', (e) => decideFeedback(e.target.closest('[data-id]').dataset.id, 'rejected')));
+  $$('.fbAddKb', box).forEach((b) => b.addEventListener('click', (e) => openKbAdd(e.target.closest('[data-id]').dataset.id, items)));
+}
+
+async function decideFeedback(id, status) {
+  try {
+    await api(`/api/admin/feedback/${id}/decide`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+    toast(status === 'confirmed' ? '확정했습니다.' : '거부했습니다.');
+    loadFeedback();
+    refreshFbPendingCount();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+let kbAddFeedbackId = null;
+
+function openKbAdd(id, items) {
+  const rec = items.find((x) => x.id === id);
+  if (!rec) return;
+  kbAddFeedbackId = id;
+  closeModal('mdUsers');
+  openModal('mdKbAdd');
+  $('#kaProcess').innerHTML = state.processes.map((p) => `<option value="${p.id}"${p.id === rec.processId ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
+  $('#kaSeverity').value = 'medium';
+  $('#kaName').value = rec.newDefectName || '';
+  $('#kaNameEn').value = '';
+  $('#kaDesc').value = rec.newDefectDescription || '';
+  $('#kaKeywords').value = '';
+  $('#kaCues').value = (rec.visualCues || []).join(', ');
+  $('#kaDetect').value = '';
+  $('#kaCauses').value = '';
+  $('#kaActions').value = '';
+  $('#kaMeasures').value = '';
+}
+
+async function submitKbAdd() {
+  if (!kbAddFeedbackId) return;
+  const lines = (s) => s.split('\n').map((x) => x.trim()).filter(Boolean);
+  const csv = (s) => s.split(',').map((x) => x.trim()).filter(Boolean);
+  const name = $('#kaName').value.trim();
+  if (!name) {
+    toast('불량명을 입력하세요.', true);
+    return;
+  }
+  const body = {
+    process: $('#kaProcess').value,
+    name,
+    nameEn: $('#kaNameEn').value.trim(),
+    severity: $('#kaSeverity').value,
+    description: $('#kaDesc').value.trim(),
+    keywords: csv($('#kaKeywords').value),
+    visualCues: csv($('#kaCues').value),
+    detect: $('#kaDetect').value.trim(),
+    causes: lines($('#kaCauses').value).map((text) => ({ text, cat: 'Method' })),
+    actions: lines($('#kaActions').value).map((text) => ({ text })),
+    measures: lines($('#kaMeasures').value).map((text) => ({ text }))
+  };
+  try {
+    await api(`/api/admin/feedback/${kbAddFeedbackId}/add-to-kb`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    toast('지식베이스에 추가했습니다.');
+    closeModal('mdKbAdd');
+    kbAddFeedbackId = null;
+    const boot = await api('/api/bootstrap');
+    state.boot = boot;
+    state.processes = boot.processes;
+    $('#chipKb').textContent = `KB v${boot.kb.version.kbVersion} · 불량 ${boot.kb.counts.defects}건`;
+    renderProcGrid();
+    fillProcFilter();
+    renderKbList();
+    openModal('mdUsers');
+    switchUsersTab('feedback');
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* 모달 · 이벤트                                                        */
 /* ------------------------------------------------------------------ */
 
@@ -1141,7 +1410,15 @@ function bindStaticEvents() {
   });
   $$('#usersTabs .tab').forEach((b) => b.addEventListener('click', () => switchUsersTab(b.dataset.utab)));
   $('#btnActFilter').addEventListener('click', loadActivity);
-  $('#btnUsersRefresh').addEventListener('click', () => (usersTab === 'signup' ? loadUsers() : loadActivity()));
+  $('#btnUsersRefresh').addEventListener('click', () => {
+    if (usersTab === 'signup') loadUsers();
+    else if (usersTab === 'activity') loadActivity();
+    else loadFeedback();
+  });
+  $('#fbKindCorrect').addEventListener('change', toggleFbKind);
+  $('#fbKindNew').addEventListener('change', toggleFbKind);
+  $('#btnFbSubmit').addEventListener('click', submitFeedbackCorrection);
+  $('#btnKaSubmit').addEventListener('click', submitKbAdd);
   $('#btnLogout').addEventListener('click', async () => {
     try {
       await api('/api/logout', { method: 'POST' });

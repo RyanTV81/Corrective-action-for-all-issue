@@ -18,6 +18,7 @@ const store = require('./lib/store');
 const auth = require('./lib/auth');
 const users = require('./lib/users');
 const activity = require('./lib/activity');
+const feedback = require('./lib/feedback');
 
 const PORT = Number(process.env.PORT) || 3000;
 const UPLOAD_DIR = path.join(__dirname, 'data', 'uploads');
@@ -342,6 +343,75 @@ app.get('/api/export.csv', (req, res) => {
   res.setHeader('content-disposition', `attachment; filename="qc_defect_history_${stamp}.csv"`);
   res.send(store.toCsv());
 });
+
+/* ------------------------------------------------------------------ */
+/* 학습 피드백 (판정 교정) — 촬영 각도·조명 오판정 학습용                  */
+/* ------------------------------------------------------------------ */
+
+/** 사용자가 AI/KB 판정을 확인·수정하거나 신규 불량을 제안 */
+app.post(
+  '/api/feedback',
+  wrap(async (req, res) => {
+    const b = req.body || {};
+    if (!['confirm', 'correct', 'new_defect'].includes(b.kind)) {
+      return res.status(400).json({ error: 'kind(confirm|correct|new_defect) 가 필요합니다' });
+    }
+    const rec = feedback.submit({ ...b, submittedBy: req.authUser });
+    activity.log({
+      username: req.authUser,
+      role: req.authRole,
+      action: 'feedback',
+      label:
+        b.kind === 'confirm'
+          ? '판정 확인'
+          : b.kind === 'correct'
+            ? `판정 수정 → ${b.correctedDefectName || ''}`
+            : `신규 불량 제안: ${b.newDefectName || ''}`,
+      ip: req.ip
+    });
+    res.json({ ok: true, id: rec.id });
+  })
+);
+
+/* 관리자 검토 (배포자 전용) */
+app.get('/api/admin/feedback', auth.requireAdmin, (req, res) => {
+  res.json(feedback.list(req.query));
+});
+
+app.post('/api/admin/feedback/:id/decide', auth.requireAdmin, (req, res) => {
+  const { status } = req.body || {};
+  const rec = feedback.decide(req.params.id, status, req.authUser);
+  if (!rec) return res.status(400).json({ error: '처리할 수 없는 요청입니다' });
+  res.json({ ok: true });
+});
+
+/** 신규 불량 제안을 실제 지식베이스에 추가 (관리자가 원인/조치/대책을 정리해서 등록) */
+app.post(
+  '/api/admin/feedback/:id/add-to-kb',
+  auth.requireAdmin,
+  wrap(async (req, res) => {
+    const rec = feedback.get(req.params.id);
+    if (!rec) return res.status(404).json({ error: '피드백을 찾을 수 없습니다' });
+    const b = req.body || {};
+    if (!b.process || !b.name) return res.status(400).json({ error: 'process, name 이 필요합니다' });
+
+    const defect = kb.addLearnedDefect({
+      process: b.process,
+      name: b.name,
+      nameEn: b.nameEn || '',
+      severity: b.severity || 'medium',
+      keywords: b.keywords || [],
+      visualCues: b.visualCues || rec.visualCues || [],
+      description: b.description || rec.newDefectDescription || '',
+      detect: b.detect || '',
+      causes: b.causes || [],
+      actions: b.actions || [],
+      measures: b.measures || []
+    });
+    feedback.markAddedToKb(rec.id, defect.id);
+    res.json({ ok: true, defect });
+  })
+);
 
 /* ------------------------------------------------------------------ */
 /* 설정                                                                 */
