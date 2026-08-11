@@ -470,3 +470,8 @@ table.tbl td img { width: 40px; height: 32px; object-fit: cover; border-radius: 
 .kb-def:last-child { border-bottom: 0; }
 .kb-def b { display: block; }
 .kb-def p { margin: 3px 0 0; color: var(--ink-2); font-size: 12px; }
+
+.page-credit {
+  position: fixed; right: 10px; bottom: 6px; font-size: 10.5px;
+  color: var(--ink-3); opacity: .55; pointer-events: none; user-select: none;
+}
