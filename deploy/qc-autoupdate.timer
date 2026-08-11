@@ -1,0 +1,10 @@
+[Unit]
+Description=5분마다 QC Dashboard 새 버전 확인
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

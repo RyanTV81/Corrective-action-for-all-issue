@@ -1,0 +1,7 @@
+[Unit]
+Description=QC Dashboard git 자동 업데이트 확인
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash /opt/qc-dashboard/deploy/auto-update.sh
