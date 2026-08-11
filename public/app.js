@@ -773,7 +773,7 @@ function renderResult(r) {
       </div>`
     : '';
 
-  $('#resultBox').innerHTML = warn + verdict + tabs + bodies + actions + fbCard;
+  $('#resultBox').innerHTML = warn + verdict + fbCard + actions + tabs + bodies;
 
   $$('#resTabs .tab').forEach((b) =>
     b.addEventListener('click', () => {
