@@ -4,3 +4,7 @@ data/
 .env
 *.tar.gz
 .claude/
+
+# 지식베이스는 코드가 아니라 런타임 데이터 — 앱 내장 [지식베이스 업데이트] 기능(lib/update.js)이
+# 자체 버전 관리·백업으로 갱신한다. git 자동배포(deploy/auto-update.sh)가 덮어쓰면 안 되므로 제외.
+kb/
