@@ -353,10 +353,12 @@ input:focus, textarea:focus, select:focus {
 }
 .modal[hidden] { display: none; }
 .modal-box {
-  background: #fff; border-radius: 12px; width: 100%; max-width: 560px;
-  max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0, 0, 0, .3);
+  background: #fff; border-radius: 12px; width: 560px; max-width: 95vw; min-width: 320px;
+  max-height: 90vh; min-height: 220px; display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .3);
+  resize: both; overflow: hidden;
 }
-.modal-box.wide { max-width: 760px; }
+.modal-box.wide { width: 760px; }
 
 /* 항목 상세정보 */
 .related-list { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.7; }
@@ -378,12 +380,12 @@ input:focus, textarea:focus, select:focus {
 .why-a { font-size: 13px; color: var(--ink-2); margin-top: 3px; }
 .modal-box header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 15px 18px; border-bottom: 1px solid var(--line);
+  padding: 15px 18px; border-bottom: 1px solid var(--line); flex: 0 0 auto;
 }
-.modal-box .modal-body { padding: 18px; overflow-y: auto; }
+.modal-box .modal-body { padding: 18px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
 .modal-box footer {
   display: flex; justify-content: flex-end; gap: 8px;
-  padding: 13px 18px; border-top: 1px solid var(--line);
+  padding: 13px 18px; border-top: 1px solid var(--line); flex: 0 0 auto;
 }
 .x { border: 0; background: transparent; font-size: 24px; line-height: 1; cursor: pointer; color: var(--ink-3); }
 .hint { font-size: 12px; color: var(--ink-3); margin: 5px 0 0; }
