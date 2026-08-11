@@ -1183,6 +1183,7 @@ async function renderKbList() {
               (d) => `<div class="kb-def">
                 <b>${esc(LANG === 'en' && d.nameEn ? d.nameEn : d.name)} <span class="tag ${sev(d.severity).cls}">${t(sev(d.severity).ko)}</span></b>
                 <p>${esc(d.description)}</p>
+                ${(d.images || []).length ? `<div class="shots fb-shots">${d.images.map((u) => `<a href="${u}" target="_blank"><img src="${u}" alt=""></a>`).join('')}</div>` : ''}
                 <button class="btn small kbGo" data-id="${d.id}" style="width:auto;padding:4px 10px;margin-top:6px">${t('이 불량의 원인·조치·대책 보기')}</button>
               </div>`
             )
@@ -1543,7 +1544,8 @@ async function submitFeedbackConfirm() {
         processId: r.process ? r.process.id : null,
         processName: r.process ? r.process.name : '',
         originalDefectId: r.defect ? r.defect.id : null,
-        originalDefectName: (r.defect && r.defect.name) || (r.vision && r.vision.defectName) || ''
+        originalDefectName: (r.defect && r.defect.name) || (r.vision && r.vision.defectName) || '',
+        imageUrls: (r.images || []).map((i) => i.url)
       })
     });
     toast(t('감사합니다! 판정 확인이 기록되었습니다.'));
@@ -1600,7 +1602,8 @@ async function submitFeedbackCorrection() {
     originalDefectId: r.defect ? r.defect.id : null,
     originalDefectName: (r.defect && r.defect.name) || (r.vision && r.vision.defectName) || '',
     note: $('#fbNote').value.trim(),
-    visualCues: r.vision ? r.vision.visualCues || [] : []
+    visualCues: r.vision ? r.vision.visualCues || [] : [],
+    imageUrls: (r.images || []).map((i) => i.url)
   };
   if (isNew) {
     const name = $('#fbNewName').value.trim();
@@ -1673,6 +1676,7 @@ function renderFeedback(items, total) {
         <div class="item-main">
           <div class="item-text">${t(FB_KIND_KO[x.kind])} ${esc(x.originalDefectName || '?')} → ${esc(target)}</div>
           <div class="item-sub">${esc(x.submittedBy)} · ${esc(x.processName || '-')} · ${fmtDate(x.at)}${x.note ? ' · ' + t('메모: ') + esc(x.note) : ''}</div>
+          ${(x.imageUrls || []).length ? `<div class="shots fb-shots">${x.imageUrls.map((u) => `<a href="${u}" target="_blank"><img src="${u}" alt=""></a>`).join('')}</div>` : ''}
           <div class="item-meta">
             <span class="tag ${x.status === 'confirmed' ? 'proc' : x.status === 'rejected' ? 'high' : 'medium'}">${t(FB_STATUS_KO[x.status])}</span>
             ${x.addedToKb ? `<span class="badge ai">${t('KB 등록됨')}</span>` : ''}

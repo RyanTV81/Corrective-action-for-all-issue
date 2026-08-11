@@ -152,7 +152,8 @@ app.get(
         name: d.name,
         nameEn: d.nameEn,
         severity: d.severity,
-        description: d.description
+        description: d.description,
+        images: d.images || []
       }))
     });
   })
@@ -410,7 +411,8 @@ app.post(
       detect: b.detect || '',
       causes: b.causes || [],
       actions: b.actions || [],
-      measures: b.measures || []
+      measures: b.measures || [],
+      images: rec.imageUrls || []
     });
     feedback.markAddedToKb(rec.id, defect.id);
     res.json({ ok: true, defect });

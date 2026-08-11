@@ -339,6 +339,8 @@ input:focus, textarea:focus, select:focus {
 
 .shots { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .shots img { width: 120px; height: 120px; object-fit: cover; border-radius: 7px; border: 1px solid var(--line); }
+.fb-shots { margin-top: 6px; }
+.fb-shots img { width: 56px; height: 56px; }
 
 .result-actions {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
