@@ -59,7 +59,7 @@ id -u "$SERVICE_USER" >/dev/null 2>&1 || useradd --system --no-create-home --she
 
 if [ -d "$APP_DIR/.git" ]; then
   echo "    이미 git 저장소가 있습니다 — 최신으로 갱신합니다."
-  git config --global --add safe.directory "$APP_DIR"
+  git config --system --add safe.directory "$APP_DIR"
   git -C "$APP_DIR" fetch --quiet origin
   git -C "$APP_DIR" reset --hard --quiet "$(git -C "$APP_DIR" rev-parse origin/HEAD 2>/dev/null || git -C "$APP_DIR" rev-parse origin/master)"
 elif [ -d "$APP_DIR" ] && [ -n "$(ls -A "$APP_DIR" 2>/dev/null)" ]; then
@@ -68,7 +68,7 @@ elif [ -d "$APP_DIR" ] && [ -n "$(ls -A "$APP_DIR" 2>/dev/null)" ]; then
   BACKUP_DIR="${APP_DIR}.bak-$(date +%s)"
   mv "$APP_DIR" "$BACKUP_DIR"
   git clone --quiet "$REPO_URL" "$APP_DIR"
-  git config --global --add safe.directory "$APP_DIR"
+  git config --system --add safe.directory "$APP_DIR"
   for d in data kb; do
     if [ -d "$BACKUP_DIR/$d" ]; then
       rm -rf "$APP_DIR/$d"
@@ -80,7 +80,7 @@ elif [ -d "$APP_DIR" ] && [ -n "$(ls -A "$APP_DIR" 2>/dev/null)" ]; then
 else
   mkdir -p "$APP_DIR"
   git clone --quiet "$REPO_URL" "$APP_DIR"
-  git config --global --add safe.directory "$APP_DIR"
+  git config --system --add safe.directory "$APP_DIR"
 fi
 
 cd "$APP_DIR"
