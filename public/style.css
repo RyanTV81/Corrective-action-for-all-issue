@@ -178,16 +178,17 @@ input:focus, textarea:focus, select:focus {
 .toggles { display: flex; flex-direction: column; gap: 9px; }
 .switch { display: flex; align-items: center; gap: 9px; font-size: 12.5px; cursor: pointer; font-weight: 600; }
 .switch input { display: none; }
-.switch span {
+.switch input + span {
   width: 36px; height: 20px; border-radius: 999px; background: #ccd5e2;
   position: relative; transition: .18s; flex: 0 0 auto;
 }
-.switch span::after {
+.switch input + span::after {
   content: ""; position: absolute; top: 2px; left: 2px;
   width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: .18s;
 }
 .switch input:checked + span { background: var(--accent); }
 .switch input:checked + span::after { transform: translateX(16px); }
+.switch span + span { flex: 1 1 auto; white-space: normal; }
 
 /* 버튼 */
 .btn {
