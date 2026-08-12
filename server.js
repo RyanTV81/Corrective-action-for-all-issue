@@ -343,7 +343,7 @@ app.delete(
 );
 
 app.get('/api/export.csv', (req, res) => {
-  const stamp = new Date().toISOString().slice(0, 10);
+  const stamp = store.kstDayKey(new Date());
   res.setHeader('content-type', 'text/csv; charset=utf-8');
   res.setHeader('content-disposition', `attachment; filename="qc_defect_history_${stamp}.csv"`);
   res.send(store.toCsv());
