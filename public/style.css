@@ -341,6 +341,13 @@ input:focus, textarea:focus, select:focus {
 .shots img { width: 120px; height: 120px; object-fit: cover; border-radius: 7px; border: 1px solid var(--line); }
 .fb-shots { margin-top: 6px; }
 .fb-shots img { width: 56px; height: 56px; }
+.fb-toggle { cursor: pointer; border-radius: 6px; }
+.fb-toggle:focus-visible { outline: 2px solid var(--brand-2); outline-offset: 2px; }
+.fb-hint { font-size: 11px; color: var(--brand-2); font-weight: 600; }
+.fb-toggle:hover .fb-hint, .fb-toggle:focus-visible .fb-hint { text-decoration: underline; }
+.fb-extra { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.fb-extra .row { display: flex; gap: 8px; margin-bottom: 5px; font-size: 12.5px; }
+.fb-extra .row b { flex: 0 0 92px; color: var(--ink-2); font-weight: 700; }
 
 .result-actions {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;

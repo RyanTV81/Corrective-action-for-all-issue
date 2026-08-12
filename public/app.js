@@ -250,6 +250,12 @@ const I18N_EN = {
   '피드백이 없습니다.': 'No feedback.',
   '확정했습니다.': 'Confirmed.',
   '메모: ': 'Note: ',
+  '새 불량 설명': 'New Defect Description',
+  '시각 특징': 'Visual Features',
+  '검토': 'Reviewed',
+  '🔍 원본 분석 결과 보기': '🔍 View Original Analysis',
+  '▾ 상세보기': '▾ Details',
+  '▴ 접기': '▴ Collapse',
 
   // KB 신규 등록 모달
   '지식베이스에 새 불량 등록': 'Register New Defect in Knowledge Base',
@@ -1731,15 +1737,27 @@ function renderFeedback(items, total) {
   box.innerHTML = `<div class="item-list">${sorted
     .map((x) => {
       const target = x.kind === 'new_defect' ? x.newDefectName : x.kind === 'correct' ? x.correctedDefectName : t('(확인만)');
+      const extraRows = [
+        x.newDefectDescription ? `<div class="row"><b>${t('새 불량 설명')}</b><span>${esc(x.newDefectDescription)}</span></div>` : '',
+        (x.visualCues || []).length ? `<div class="row"><b>${t('시각 특징')}</b><span>${x.visualCues.map(esc).join(' · ')}</span></div>` : '',
+        x.reviewedBy ? `<div class="row"><b>${t('검토')}</b><span>${esc(x.reviewedBy)} · ${fmtDate(x.reviewedAt)}</span></div>` : ''
+      ].join('');
+      const goRecordBtn = x.recordId
+        ? `<button class="btn small fbGoRecord" data-record-id="${esc(x.recordId)}" style="width:auto;padding:4px 9px;margin-top:4px">${t('🔍 원본 분석 결과 보기')}</button>`
+        : '';
+      const hasExtra = Boolean(extraRows || goRecordBtn);
+
       return `<div class="item" data-id="${esc(x.id)}" style="align-items:flex-start">
-        <div class="item-main">
+        <div class="item-main${hasExtra ? ' fb-toggle' : ''}"${hasExtra ? ' role="button" tabindex="0" aria-expanded="false"' : ''}>
           <div class="item-text">${t(FB_KIND_KO[x.kind])} ${esc(x.originalDefectName || '?')} → ${esc(target)}</div>
           <div class="item-sub">${esc(x.submittedBy)} · ${esc(x.processName || '-')} · ${fmtDate(x.at)}${x.note ? ' · ' + t('메모: ') + esc(x.note) : ''}</div>
           ${(x.imageUrls || []).length ? `<div class="shots fb-shots">${x.imageUrls.map((u) => `<a href="${u}" target="_blank"><img src="${u}" alt=""></a>`).join('')}</div>` : ''}
           <div class="item-meta">
             <span class="tag ${x.status === 'confirmed' ? 'proc' : x.status === 'rejected' ? 'high' : 'medium'}">${t(FB_STATUS_KO[x.status])}</span>
             ${x.addedToKb ? `<span class="badge ai">${t('KB 등록됨')}</span>` : ''}
+            ${hasExtra ? `<span class="fb-hint">${t('▾ 상세보기')}</span>` : ''}
           </div>
+          ${hasExtra ? `<div class="fb-extra" hidden>${extraRows}${goRecordBtn}</div>` : ''}
         </div>
         <div class="nowrap" style="display:flex;flex-direction:column;gap:4px">
           ${x.status !== 'confirmed' ? `<button class="btn small fbConfirm" style="width:auto;padding:4px 9px">${t('확정')}</button>` : ''}
@@ -1750,6 +1768,34 @@ function renderFeedback(items, total) {
     })
     .join('')}</div>
     <p class="note" style="margin-top:10px">${LANG === 'en' ? `Showing ${items.length} of ${total}` : `최근 ${items.length}건 (전체 ${total}건 중)`}</p>`;
+
+  $$('.fb-toggle', box).forEach((el) => {
+    const extra = el.querySelector('.fb-extra');
+    const hint = el.querySelector('.fb-hint');
+    const toggle = () => {
+      extra.hidden = !extra.hidden;
+      el.setAttribute('aria-expanded', String(!extra.hidden));
+      if (hint) hint.textContent = t(extra.hidden ? '▾ 상세보기' : '▴ 접기');
+    };
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('a, button')) return;
+      toggle();
+    });
+    el.addEventListener('keydown', (e) => {
+      if (e.target.closest('a, button')) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggle();
+      }
+    });
+  });
+
+  $$('.fbGoRecord', box).forEach((b) =>
+    b.addEventListener('click', () => {
+      closeModal('mdUsers');
+      openHistoryDetail(b.dataset.recordId);
+    })
+  );
 
   $$('.fbConfirm', box).forEach((b) => b.addEventListener('click', (e) => decideFeedback(e.target.closest('[data-id]').dataset.id, 'confirmed')));
   $$('.fbReject', box).forEach((b) => b.addEventListener('click', (e) => decideFeedback(e.target.closest('[data-id]').dataset.id, 'rejected')));
