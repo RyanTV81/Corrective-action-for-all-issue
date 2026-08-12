@@ -494,7 +494,24 @@ async function api(path, opts = {}) {
   return body;
 }
 
-const fmtDate = (iso) => (iso || '').replace('T', ' ').slice(0, 16);
+/** ISO(UTC) 타임스탬프 → 한국 시간(KST, UTC+9) "YYYY-MM-DD HH:mm" 표시.
+ *  보는 사람의 브라우저 시간대와 무관하게 항상 한국 시간 기준으로 고정 표시한다. */
+function fmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(d);
+  const get = (type) => parts.find((p) => p.type === type).value;
+  return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
+}
 
 /* ------------------------------------------------------------------ */
 /* 초기화                                                               */
