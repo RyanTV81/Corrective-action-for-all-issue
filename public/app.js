@@ -118,6 +118,10 @@ const I18N_EN = {
   'Gemini API 키': 'Gemini API Key',
   '<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>에서 신용카드 없이 무료로 발급받을 수 있습니다. 한 번만 등록해두면 그 다음부터는 인터넷 연결만으로 사진 판독·인터넷 조사가 자동 동작합니다. 비워두면 내장 지식베이스로만 분석합니다. 키는 이 PC의 <code>data/config.json</code> 에만 저장됩니다.':
     'Get a free key with no credit card at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>. Once registered, photo analysis and web research work automatically as long as you\'re online. Leave it blank to analyze using only the built-in knowledge base. The key is stored only in this PC\'s <code>data/config.json</code>.',
+  'Gemini API 키 2': 'Gemini API Key 2',
+  '(선택 · 무료 한도 확장용)': '(optional · extends free quota)',
+  '두 번째 무료 키를 추가로 등록하면 요청을 두 키에 번갈아 분산해서, 무료 사용량 한도(분당 요청 수)에 걸릴 확률을 크게 줄입니다. 별도 Google 계정에서 새로 발급받은 키를 등록하세요. 비워두면 기존처럼 키 1개만 사용합니다.':
+    'Registering a second free key spreads requests across both keys, greatly reducing the chance of hitting the free-tier rate limit (requests per minute). Use a key issued from a separate Google account. Leave it blank to keep using just one key as before.',
   '분석 모델': 'Analysis Model',
   '분석 심도': 'Analysis Depth',
   'Gemini 3.5 Flash — 최고 정확도': 'Gemini 3.5 Flash — Highest Accuracy',
@@ -1248,6 +1252,8 @@ function applySettingsToForm() {
   $('#cfgEffort').innerHTML = s.efforts.map((e) => `<option value="${e.id}"${e.id === s.effort ? ' selected' : ''}>${esc(t(e.name))}</option>`).join('');
   $('#cfgKey').value = '';
   $('#cfgKey').placeholder = s.hasApiKey ? s.apiKeyMasked + (s.keyFromEnv ? `  (${t('환경변수')})` : '') : 'AIzaSy...';
+  $('#cfgKey2').value = '';
+  $('#cfgKey2').placeholder = s.hasApiKey2 ? s.apiKey2Masked + (s.key2FromEnv ? `  (${t('환경변수')})` : '') : 'AIzaSy...';
   $('#cfgUseAI').checked = s.useAI;
   $('#cfgUseWeb').checked = s.useWeb;
   $('#cfgLine').value = s.line || '';
@@ -1275,6 +1281,8 @@ async function saveSettings() {
   };
   const key = $('#cfgKey').value.trim();
   if (key) body.apiKey = key;
+  const key2 = $('#cfgKey2').value.trim();
+  if (key2) body.apiKey2 = key2;
 
   if (state.role === 'admin') {
     body.smtpUser = $('#cfgSmtpUser').value.trim();
