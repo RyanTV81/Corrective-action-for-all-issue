@@ -107,6 +107,7 @@ const I18N_EN = {
   '상태를 변경했습니다.': 'Status updated.',
   '이 이력을 삭제할까요?': 'Delete this record?',
   '이력을 불러오지 못했습니다: ': 'Failed to load history: ',
+  '결과 보기': 'View Result',
 
   // 지식베이스
   '내장 지식베이스에 등록된 공정별 불량 항목입니다. 항목을 클릭하면 해당 불량의 원인 10 · 개선조치 10 · 개선대책 10을 바로 확인할 수 있습니다.':
@@ -1122,7 +1123,7 @@ async function loadHistory() {
     tb.innerHTML = res.items
       .map((r) => {
         const s = sev(r.severity);
-        return `<tr data-id="${r.id}">
+        return `<tr class="hRow" data-id="${r.id}" tabindex="0" role="button" aria-label="${esc(t('결과 보기'))}">
           <td class="nowrap">${fmtDate(r.at)}<br><small>${esc(r.id)}</small></td>
           <td>${r.thumb ? `<a href="${r.thumb}" target="_blank"><img src="${r.thumb}" alt=""></a>` : ''}</td>
           <td>${esc(r.processName || '-')}</td>
@@ -1137,6 +1138,21 @@ async function loadHistory() {
         </tr>`;
       })
       .join('');
+
+    $$('tr.hRow', tb).forEach((tr) => {
+      const go = () => openHistoryDetail(tr.dataset.id);
+      tr.addEventListener('click', (e) => {
+        if (e.target.closest('select, button, a')) return;
+        go();
+      });
+      tr.addEventListener('keydown', (e) => {
+        if (e.target.closest('select, button, a')) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          go();
+        }
+      });
+    });
 
     $$('.hStatus', tb).forEach((sel) =>
       sel.addEventListener('change', async () => {
@@ -1166,6 +1182,37 @@ async function loadHistory() {
         }
       })
     );
+  } catch (e) {
+    toast(t('이력을 불러오지 못했습니다: ') + e.message, true);
+  }
+}
+
+/** 이력 목록에서 한 건을 선택하면, 저장 당시의 원인·조치·대책·판정을 [분석 결과] 화면 그대로 다시 보여준다. */
+async function openHistoryDetail(id) {
+  try {
+    const rec = await api('/api/history/' + id);
+    const rep = rec.report || {};
+    const pseudo = {
+      recordId: rec.id,
+      process: rep.process || null,
+      defect: rep.defect || null,
+      vision: rep.vision || null,
+      web: rep.web || null,
+      judgement: rep.judgement || null,
+      candidates: rep.candidates || [],
+      causes: rep.causes || [],
+      actions: rep.actions || [],
+      measures: rep.measures || [],
+      warnings: [],
+      processGuesses: [],
+      images: (rec.images || []).map((url) => ({ url })),
+      elapsedMs: rec.elapsedMs || 0,
+      aiEnabled: state.boot.aiEnabled,
+      usedAI: rec.aiUsed
+    };
+    state.result = pseudo;
+    showView('analyze');
+    renderResult(pseudo);
   } catch (e) {
     toast(t('이력을 불러오지 못했습니다: ') + e.message, true);
   }
