@@ -118,10 +118,12 @@ const I18N_EN = {
   'Gemini API 키': 'Gemini API Key',
   '<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>에서 신용카드 없이 무료로 발급받을 수 있습니다. 한 번만 등록해두면 그 다음부터는 인터넷 연결만으로 사진 판독·인터넷 조사가 자동 동작합니다. 비워두면 내장 지식베이스로만 분석합니다. 키는 이 PC의 <code>data/config.json</code> 에만 저장됩니다.':
     'Get a free key with no credit card at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>. Once registered, photo analysis and web research work automatically as long as you\'re online. Leave it blank to analyze using only the built-in knowledge base. The key is stored only in this PC\'s <code>data/config.json</code>.',
-  'Gemini API 키 2': 'Gemini API Key 2',
-  '(선택 · 무료 한도 확장용)': '(optional · extends free quota)',
-  '두 번째 무료 키를 추가로 등록하면 요청을 두 키에 번갈아 분산해서, 무료 사용량 한도(분당 요청 수)에 걸릴 확률을 크게 줄입니다. 별도 Google 계정에서 새로 발급받은 키를 등록하세요. 비워두면 기존처럼 키 1개만 사용합니다.':
-    'Registering a second free key spreads requests across both keys, greatly reducing the chance of hitting the free-tier rate limit (requests per minute). Use a key issued from a separate Google account. Leave it blank to keep using just one key as before.',
+  '추가 API 키': 'Additional API Keys',
+  '(선택 · 한 줄에 하나씩 · 무료 한도 확장용)': '(optional · one per line · extends free quota)',
+  '서로 다른 Google 계정에서 발급받은 무료 키를 한 줄에 하나씩 추가하면, 요청이 모든 키에 번갈아 분산되어 무료 사용량 한도(분당 요청 수)에 걸릴 확률이 줄어듭니다. 개수 제한 없이 원하는 만큼 추가할 수 있습니다. 이미 등록된 키는 점(•)으로 표시되며, 그 줄을 그대로 두면 유지되고 지우면 삭제됩니다.':
+    'Add free keys issued from separate Google accounts, one per line, and requests will be spread across all of them, reducing the chance of hitting the free-tier rate limit (requests per minute). Add as many as you like. Already-saved keys show as dots (•) — leave a line as-is to keep it, or delete the line to remove that key.',
+  '현재 총 ': 'Currently ',
+  '개 키가 등록되어 있습니다.': ' key(s) registered.',
   '분석 모델': 'Analysis Model',
   '분석 심도': 'Analysis Depth',
   'Gemini 3.5 Flash — 최고 정확도': 'Gemini 3.5 Flash — Highest Accuracy',
@@ -1252,8 +1254,8 @@ function applySettingsToForm() {
   $('#cfgEffort').innerHTML = s.efforts.map((e) => `<option value="${e.id}"${e.id === s.effort ? ' selected' : ''}>${esc(t(e.name))}</option>`).join('');
   $('#cfgKey').value = '';
   $('#cfgKey').placeholder = s.hasApiKey ? s.apiKeyMasked + (s.keyFromEnv ? `  (${t('환경변수')})` : '') : 'AIzaSy...';
-  $('#cfgKey2').value = '';
-  $('#cfgKey2').placeholder = s.hasApiKey2 ? s.apiKey2Masked + (s.key2FromEnv ? `  (${t('환경변수')})` : '') : 'AIzaSy...';
+  $('#cfgKeysExtra').value = (s.apiKeysExtra || []).join('\n');
+  $('#cfgKeyCountHint').textContent = `${t('현재 총 ')}${s.totalKeyCount || 0}${t('개 키가 등록되어 있습니다.')}`;
   $('#cfgUseAI').checked = s.useAI;
   $('#cfgUseWeb').checked = s.useWeb;
   $('#cfgLine').value = s.line || '';
@@ -1281,8 +1283,10 @@ async function saveSettings() {
   };
   const key = $('#cfgKey').value.trim();
   if (key) body.apiKey = key;
-  const key2 = $('#cfgKey2').value.trim();
-  if (key2) body.apiKey2 = key2;
+  body.apiKeysExtra = $('#cfgKeysExtra')
+    .value.split('\n')
+    .map((x) => x.trim())
+    .filter(Boolean);
 
   if (state.role === 'admin') {
     body.smtpUser = $('#cfgSmtpUser').value.trim();

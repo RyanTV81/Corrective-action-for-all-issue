@@ -179,9 +179,10 @@
         <p class="hint" data-i18n-html><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>에서 신용카드 없이 무료로 발급받을 수 있습니다. 한 번만 등록해두면 그 다음부터는 인터넷 연결만으로 사진 판독·인터넷 조사가 자동 동작합니다. 비워두면 내장 지식베이스로만 분석합니다. 키는 이 PC의 <code>data/config.json</code> 에만 저장됩니다.</p>
       </div>
       <div class="field">
-        <label for="cfgKey2"><span data-i18n>Gemini API 키 2</span> <small data-i18n>(선택 · 무료 한도 확장용)</small></label>
-        <input type="password" id="cfgKey2" placeholder="AIzaSy...">
-        <p class="hint" data-i18n>두 번째 무료 키를 추가로 등록하면 요청을 두 키에 번갈아 분산해서, 무료 사용량 한도(분당 요청 수)에 걸릴 확률을 크게 줄입니다. 별도 Google 계정에서 새로 발급받은 키를 등록하세요. 비워두면 기존처럼 키 1개만 사용합니다.</p>
+        <label for="cfgKeysExtra"><span data-i18n>추가 API 키</span> <small data-i18n>(선택 · 한 줄에 하나씩 · 무료 한도 확장용)</small></label>
+        <textarea id="cfgKeysExtra" rows="3" placeholder="AIzaSy..."></textarea>
+        <p class="hint" data-i18n>서로 다른 Google 계정에서 발급받은 무료 키를 한 줄에 하나씩 추가하면, 요청이 모든 키에 번갈아 분산되어 무료 사용량 한도(분당 요청 수)에 걸릴 확률이 줄어듭니다. 개수 제한 없이 원하는 만큼 추가할 수 있습니다. 이미 등록된 키는 점(•)으로 표시되며, 그 줄을 그대로 두면 유지되고 지우면 삭제됩니다.</p>
+        <p class="hint" id="cfgKeyCountHint"></p>
       </div>
       <div class="field two">
         <div>
