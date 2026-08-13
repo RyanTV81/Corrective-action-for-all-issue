@@ -208,6 +208,31 @@ const I18N_EN = {
   '활동': 'Activity',
   '내용': 'Details',
   '관리자': 'Admin',
+  '행을 클릭하면 자세한 내용이 열립니다.': 'Click a row to see the full details.',
+  '접속 IP': 'IP Address',
+  '접속 환경': 'Client',
+  '이 기록에는 상세 정보가 없습니다 (기능 추가 전에 남은 기록입니다).': 'No details stored for this entry (recorded before this feature was added).',
+  '🔍 분석 결과 열기': '🔍 Open Analysis Result',
+  '📖 지식베이스 항목 열기': '📖 Open KB Entry',
+  '🔍 상세정보 다시 조회': '🔍 Re-open Item Detail',
+  '💬 학습 피드백에서 보기': '💬 View in Learning Feedback',
+  '저장된 이력이 없어 열 수 없습니다.': 'Cannot open — no saved record.',
+  '해당 피드백을 찾을 수 없습니다 (삭제되었거나 목록 범위 밖입니다).': 'Feedback not found (deleted or outside the loaded range).',
+  '구분': 'Type',
+  '입력 내용': 'Input',
+  '기존 판정': 'Original Judgement',
+  '수정 판정': 'Corrected Judgement',
+  '제안 불량명': 'Proposed Defect',
+  '조치 상태': 'Status',
+  '첨부 사진': 'Photos',
+  'AI 판독': 'AI Analysis',
+  '분석 소요': 'Elapsed',
+  '분석 시각': 'Analyzed At',
+  '이력 번호': 'Record ID',
+  '불량 코드': 'Defect Code',
+  '사용': 'Used',
+  '미사용': 'Not used',
+  '초': 's',
 
   // 학습 피드백 (결과화면)
   '판정이 정확한가요?': 'Is this judgement accurate?',
@@ -496,7 +521,7 @@ async function api(path, opts = {}) {
 
 /** ISO(UTC) 타임스탬프 → 한국 시간(KST, UTC+9) "YYYY-MM-DD HH:mm" 표시.
  *  보는 사람의 브라우저 시간대와 무관하게 항상 한국 시간 기준으로 고정 표시한다. */
-function fmtDate(iso) {
+function fmtDate(iso, withSec) {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
@@ -507,10 +532,12 @@ function fmtDate(iso) {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+    second: withSec ? '2-digit' : undefined,
     hour12: false
   }).formatToParts(d);
   const get = (type) => parts.find((p) => p.type === type).value;
-  return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
+  const hms = `${get('hour')}:${get('minute')}` + (withSec ? `:${get('second')}` : '');
+  return `${get('year')}-${get('month')}-${get('day')} ${hms}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -842,34 +869,34 @@ async function openItemDetail(kind, idx) {
   const it = arr[idx];
   if (!it) return;
 
-  openModal('mdDetail');
-  $('#detailTitle').textContent = `${t(ITEM_KIND_KO[kind]) || ''} — ${it.text}`;
-  $('#detailBody').innerHTML = `<div class="loading"><div class="spinner"></div><p>${t('상세 정보를 불러오는 중…')}</p></div>`;
+  await showItemDetail({
+    kind,
+    text: it.text,
+    rationale: it.rationale || '',
+    cat: it.cat,
+    when: it.when,
+    owner: it.owner,
+    type: it.type,
+    kpi: it.kpi,
+    defectName: (r.defect && r.defect.name) || (r.vision && r.vision.defectName) || '',
+    defectId: r.defect ? r.defect.id : null,
+    processId: r.process ? r.process.id : null,
+    processName: r.process ? r.process.name : '',
+    recordId: r.recordId || null
+  });
+}
 
-  const defectName = (r.defect && r.defect.name) || (r.vision && r.vision.defectName) || '';
-  const processName = r.process ? r.process.name : '';
+/** 원인·조치·대책 문구 1건의 상세정보 모달을 연다 (분석 결과 화면 / 활동 이력 재조회 공용). */
+async function showItemDetail(p) {
+  openModal('mdDetail');
+  $('#detailTitle').textContent = `${t(ITEM_KIND_KO[p.kind]) || ''} — ${p.text}`;
+  $('#detailBody').innerHTML = `<div class="loading"><div class="spinner"></div><p>${t('상세 정보를 불러오는 중…')}</p></div>`;
 
   try {
     const data = await api('/api/item-detail', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        text: it.text,
-        kind,
-        rationale: it.rationale || '',
-        cat: it.cat,
-        when: it.when,
-        owner: it.owner,
-        type: it.type,
-        kpi: it.kpi,
-        defectName,
-        defectId: r.defect ? r.defect.id : null,
-        processId: r.process ? r.process.id : null,
-        processName,
-        recordId: r.recordId || null,
-        useAI: $('#useAI').checked,
-        lang: LANG
-      })
+      body: JSON.stringify({ ...p, useAI: $('#useAI').checked, lang: LANG })
     });
     renderItemDetail(data);
   } catch (e) {
@@ -1268,48 +1295,50 @@ async function renderKbList() {
       )
       .join('');
 
-    $$('.kbGo', box).forEach((b) =>
-      b.addEventListener('click', async () => {
-        try {
-          const r = await api('/api/defect/' + b.dataset.id);
-          const pseudo = {
-            defect: r.defect,
-            process: r.process ? { ...r.process, icon: '🔎', guessed: false } : null,
-            vision: null,
-            web: null,
-            warnings: [],
-            candidates: [],
-            processGuesses: [],
-            images: [],
-            elapsedMs: 0,
-            aiEnabled: state.boot.aiEnabled,
-            usedAI: false,
-            causes: r.report.causes,
-            actions: r.report.actions,
-            measures: r.report.measures,
-            judgement: {
-              label: 'KB 참조 — 실제 발생 판정 아님',
-              guidance: '실제 불량 발생 시 [분석]에서 현상·사진을 입력하면 재발 이력까지 반영한 공정 판정을 받을 수 있습니다.',
-              color: 'low',
-              score: null,
-              confidence: 1,
-              severity: r.defect.severity,
-              causeMix: {},
-              recurrence: {},
-              reasons: [],
-              immediate: r.report.actions.slice(0, 3).map((a) => a.text),
-              checkParams: (r.process && r.process.keyParams) || []
-            }
-          };
-          showView('analyze');
-          renderResult(pseudo);
-        } catch (e) {
-          toast(e.message, true);
-        }
-      })
-    );
+    $$('.kbGo', box).forEach((b) => b.addEventListener('click', () => openKbDefect(b.dataset.id)));
   } catch (e) {
     box.innerHTML = `<small>${t('불러오지 못했습니다: ')}${esc(e.message)}</small>`;
+  }
+}
+
+/** 지식베이스 불량 1건을 분석 결과 화면 형식으로 펼쳐 보여준다. */
+async function openKbDefect(defectId) {
+  try {
+    const r = await api('/api/defect/' + defectId);
+    const pseudo = {
+      defect: r.defect,
+      process: r.process ? { ...r.process, icon: '🔎', guessed: false } : null,
+      vision: null,
+      web: null,
+      warnings: [],
+      candidates: [],
+      processGuesses: [],
+      images: [],
+      elapsedMs: 0,
+      aiEnabled: state.boot.aiEnabled,
+      usedAI: false,
+      causes: r.report.causes,
+      actions: r.report.actions,
+      measures: r.report.measures,
+      judgement: {
+        label: 'KB 참조 — 실제 발생 판정 아님',
+        guidance: '실제 불량 발생 시 [분석]에서 현상·사진을 입력하면 재발 이력까지 반영한 공정 판정을 받을 수 있습니다.',
+        color: 'low',
+        score: null,
+        confidence: 1,
+        severity: r.defect.severity,
+        causeMix: {},
+        recurrence: {},
+        reasons: [],
+        immediate: r.report.actions.slice(0, 3).map((a) => a.text),
+        checkParams: (r.process && r.process.keyParams) || []
+      }
+    };
+    state.result = pseudo;
+    showView('analyze');
+    renderResult(pseudo);
+  } catch (e) {
+    toast(e.message, true);
   }
 }
 
@@ -1482,7 +1511,39 @@ const ACTIVITY_ACTION_KO = {
   analyze: '불량 분석',
   history_view: '이력 조회',
   item_detail: '상세정보 조회',
-  kb_view: '지식베이스 조회'
+  kb_view: '지식베이스 조회',
+  feedback: '학습 피드백'
+};
+
+/* 행을 펼쳤을 때 보여줄 항목 — 표시 순서대로 나열한다. */
+const ACT_FIELD_KO = {
+  kind: '구분',
+  text: '입력 내용',
+  defectName: '불량명',
+  originalDefectName: '기존 판정',
+  correctedDefectName: '수정 판정',
+  newDefectName: '제안 불량명',
+  description: '설명',
+  processName: '공정',
+  severity: '심각도',
+  judgeLabel: '공정 판정',
+  status: '조치 상태',
+  note: '메모',
+  imageCount: '첨부 사진',
+  aiUsed: 'AI 판독',
+  elapsedMs: '분석 소요',
+  at: '분석 시각',
+  recordId: '이력 번호',
+  defectId: '불량 코드',
+  ua: '접속 환경'
+};
+
+/* 활동이 가리키는 대상을 실제로 열어보는 버튼 문구 */
+const ACT_OPEN_KO = {
+  record: '🔍 분석 결과 열기',
+  defect: '📖 지식베이스 항목 열기',
+  item: '🔍 상세정보 다시 조회',
+  feedback: '💬 학습 피드백에서 보기'
 };
 
 let usersTab = 'signup';
@@ -1522,28 +1583,121 @@ function fillActivityUserFilter(items) {
   if (names.length) sel.dataset.filled = '1';
 }
 
+/** 화면에 그려진 활동 목록 — 행을 클릭했을 때 상세·열기에 사용한다. */
+let activityItems = [];
+
+/** 펼친 상세에서 항목 1개를 어떻게 보여줄지 (값은 반드시 이스케이프해서 반환) */
+function actFieldValueHtml(key, v, action) {
+  if (key === 'kind') {
+    const ko = action === 'feedback' ? FB_KIND_KO[v] : ITEM_KIND_KO[v];
+    return esc(ko ? t(ko) : String(v));
+  }
+  if (key === 'severity') {
+    const s = sev(v);
+    return `<span class="tag ${s.cls}">${t(s.ko)}</span>`;
+  }
+  if (key === 'aiUsed') return t(v ? '사용' : '미사용');
+  if (key === 'imageCount') return LANG === 'en' ? `${Number(v)} photo(s)` : `${Number(v)}장`;
+  if (key === 'elapsedMs') return `${(Number(v) / 1000).toFixed(1)}${t('초')}`;
+  if (key === 'at') return fmtDate(v);
+  return esc(String(v));
+}
+
+function activityDetailHtml(x, i) {
+  const d = x.detail || {};
+  const rows = Object.keys(ACT_FIELD_KO)
+    .filter((k) => d[k] !== undefined && d[k] !== null && d[k] !== '')
+    .map((k) => `<div class="row"><b>${t(ACT_FIELD_KO[k])}</b><span>${actFieldValueHtml(k, d[k], x.action)}</span></div>`);
+
+  rows.push(`<div class="row"><b>${t('시각')}</b><span>${fmtDate(x.at, true)}</span></div>`);
+  if (x.ip) rows.push(`<div class="row"><b>${t('접속 IP')}</b><span>${esc(x.ip)}</span></div>`);
+
+  const openable = x.ref && ACT_OPEN_KO[x.ref.type];
+  const btn = openable
+    ? `<button class="btn small actOpen" data-i="${i}" style="width:auto;padding:4px 10px;margin-top:6px">${t(ACT_OPEN_KO[x.ref.type])}</button>`
+    : '';
+  const legacy = !x.detail && !x.ref ? `<p class="note" style="margin:6px 0 0">${t('이 기록에는 상세 정보가 없습니다 (기능 추가 전에 남은 기록입니다).')}</p>` : '';
+
+  return `<div class="act-extra">${rows.join('')}${legacy}${btn}</div>`;
+}
+
 function renderActivity(items, total) {
   const box = $('#activityResults');
+  activityItems = items;
   if (!items.length) {
     box.innerHTML = `<p class="note">${t('활동 이력이 없습니다.')}</p>`;
     return;
   }
   box.innerHTML = `<p class="note" style="margin-bottom:10px">${
     LANG === 'en' ? `Showing ${items.length} of ${total}` : `최근 ${items.length}건 (전체 ${total}건 중)`
-  }</p>
+  } · ${t('행을 클릭하면 자세한 내용이 열립니다.')}</p>
     <table class="tbl">
       <thead><tr><th>${t('시각')}</th><th>${t('사용자')}</th><th>${t('활동')}</th><th>${t('내용')}</th></tr></thead>
       <tbody>${items
         .map(
-          (x) => `<tr>
+          (x, i) => `<tr class="actRow" data-i="${i}" tabindex="0" role="button" aria-expanded="false">
             <td class="nowrap"><small>${fmtDate(x.at)}</small></td>
             <td><b>${esc(x.username || '-')}</b>${x.role === 'admin' ? ` <span class="badge">${t('관리자')}</span>` : ''}</td>
             <td><span class="tag">${esc(t(ACTIVITY_ACTION_KO[x.action]) || x.action)}</span></td>
-            <td><small>${esc(x.label || '-')}</small></td>
-          </tr>`
+            <td><small>${esc(x.label || '-')}</small> <span class="act-hint">${t('▾ 상세보기')}</span></td>
+          </tr>
+          <tr class="actDetail" data-i="${i}" hidden><td colspan="4">${activityDetailHtml(x, i)}</td></tr>`
         )
         .join('')}</tbody>
     </table>`;
+
+  $$('tr.actRow', box).forEach((tr) => {
+    const detailRow = box.querySelector(`tr.actDetail[data-i="${tr.dataset.i}"]`);
+    const hint = tr.querySelector('.act-hint');
+    const toggle = () => {
+      detailRow.hidden = !detailRow.hidden;
+      tr.setAttribute('aria-expanded', String(!detailRow.hidden));
+      tr.classList.toggle('open', !detailRow.hidden);
+      hint.textContent = t(detailRow.hidden ? '▾ 상세보기' : '▴ 접기');
+    };
+    tr.addEventListener('click', (e) => {
+      if (e.target.closest('a, button')) return;
+      toggle();
+    });
+    tr.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggle();
+      }
+    });
+  });
+
+  $$('.actOpen', box).forEach((b) => b.addEventListener('click', () => openActivityTarget(activityItems[Number(b.dataset.i)])));
+}
+
+/** 활동 기록이 가리키는 실제 내용(분석 결과·KB 항목·상세정보·피드백)을 연다. */
+function openActivityTarget(x) {
+  const ref = x && x.ref;
+  if (!ref) return;
+
+  if (ref.type === 'record') {
+    if (!ref.id) return toast(t('저장된 이력이 없어 열 수 없습니다.'), true);
+    closeModal('mdUsers');
+    openHistoryDetail(ref.id);
+  } else if (ref.type === 'defect') {
+    closeModal('mdUsers');
+    openKbDefect(ref.id);
+  } else if (ref.type === 'item') {
+    // 상세정보는 저장해두지 않으므로 같은 조건으로 다시 조회한다(사용자 관리 창은 열어둔 채 위에 띄운다).
+    showItemDetail({
+      kind: ref.kind,
+      text: ref.text,
+      rationale: ref.rationale || '',
+      defectName: ref.defectName || '',
+      defectId: ref.defectId || null,
+      processId: ref.processId || null,
+      processName: ref.processName || '',
+      recordId: ref.recordId || null
+    });
+  } else if (ref.type === 'feedback') {
+    fbHighlightId = ref.id;
+    switchUsersTab('feedback');
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1720,6 +1874,9 @@ async function submitFeedbackCorrection() {
 const FB_KIND_KO = { confirm: '[확인]', correct: '[수정]', new_defect: '[신규 제안]' };
 const FB_STATUS_KO = { pending: '검토 대기', confirmed: '확정됨', rejected: '거부됨' };
 
+/** 활동 이력에서 넘어왔을 때 눈에 띄게 표시할 피드백 id */
+let fbHighlightId = null;
+
 async function refreshFbPendingCount() {
   try {
     const { items } = await api('/api/admin/feedback?status=pending');
@@ -1817,6 +1974,19 @@ function renderFeedback(items, total) {
   $$('.fbConfirm', box).forEach((b) => b.addEventListener('click', (e) => decideFeedback(e.target.closest('[data-id]').dataset.id, 'confirmed')));
   $$('.fbReject', box).forEach((b) => b.addEventListener('click', (e) => decideFeedback(e.target.closest('[data-id]').dataset.id, 'rejected')));
   $$('.fbAddKb', box).forEach((b) => b.addEventListener('click', (e) => openKbAdd(e.target.closest('[data-id]').dataset.id, items)));
+
+  if (fbHighlightId) {
+    const el = $$('.item', box).find((n) => n.dataset.id === fbHighlightId);
+    fbHighlightId = null;
+    if (el) {
+      el.classList.add('hl');
+      el.scrollIntoView({ block: 'center' });
+      const main = el.querySelector('.fb-toggle');
+      if (main) main.click();
+    } else {
+      toast(t('해당 피드백을 찾을 수 없습니다 (삭제되었거나 목록 범위 밖입니다).'), true);
+    }
+  }
 }
 
 async function decideFeedback(id, status) {

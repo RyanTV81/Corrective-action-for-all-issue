@@ -165,7 +165,21 @@ app.get(
     const d = kb.getDefect(req.params.id);
     if (!d) return res.status(404).json({ error: '불량 항목을 찾을 수 없습니다' });
     const proc = kb.getProcess(d.process);
-    activity.log({ username: req.authUser, role: req.authRole, action: 'kb_view', label: d.name, ip: req.ip });
+    activity.log({
+      username: req.authUser,
+      role: req.authRole,
+      action: 'kb_view',
+      label: d.name,
+      ref: { type: 'defect', id: d.id },
+      detail: {
+        defectId: d.id,
+        defectName: d.name,
+        processName: proc ? proc.name : '',
+        severity: d.severity,
+        description: d.description
+      },
+      ip: req.ip
+    });
     res.json({
       defect: d,
       process: proc ? { id: proc.id, name: proc.name, keyParams: proc.keyParams, standards: proc.standards } : null,
@@ -232,6 +246,18 @@ app.post(
       role: req.authRole,
       action: 'analyze',
       label: (result.defect && result.defect.name) || (result.vision && result.vision.defectName) || (text || '(사진만 분석)'),
+      ref: result.recordId ? { type: 'record', id: result.recordId } : null,
+      detail: {
+        text: text || '(사진만 분석)',
+        processName: result.process ? result.process.name : '',
+        defectName: (result.defect && result.defect.name) || (result.vision && result.vision.defectName) || '',
+        severity: (result.defect && result.defect.severity) || (result.vision && result.vision.severity) || '',
+        judgeLabel: result.judgement ? result.judgement.label : '',
+        imageCount: images.length,
+        aiUsed: Boolean(result.usedAI),
+        elapsedMs: result.elapsedMs || 0,
+        recordId: result.recordId || ''
+      },
       ip: req.ip
     });
 
@@ -301,6 +327,26 @@ app.post(
       role: req.authRole,
       action: 'item_detail',
       label: `[${kind}] ${text.slice(0, 60)}`,
+      // 상세정보는 저장하지 않고, 다시 열 수 있는 재조회 정보를 남긴다.
+      ref: {
+        type: 'item',
+        kind,
+        text,
+        rationale: b.rationale || '',
+        defectName: b.defectName || '',
+        defectId: b.defectId || '',
+        processName: b.processName || '',
+        processId: b.processId || '',
+        recordId: b.recordId || ''
+      },
+      detail: {
+        kind,
+        text,
+        defectName: b.defectName || '',
+        processName: b.processName || '',
+        aiUsed: Boolean(aiResult),
+        recordId: b.recordId || ''
+      },
       ip: req.ip
     });
 
@@ -321,7 +367,23 @@ app.get(
   wrap(async (req, res) => {
     const r = store.get(req.params.id);
     if (!r) return res.status(404).json({ error: '이력을 찾을 수 없습니다' });
-    activity.log({ username: req.authUser, role: req.authRole, action: 'history_view', label: r.defectName, ip: req.ip });
+    activity.log({
+      username: req.authUser,
+      role: req.authRole,
+      action: 'history_view',
+      label: r.defectName,
+      ref: { type: 'record', id: r.id },
+      detail: {
+        recordId: r.id,
+        defectName: r.defectName,
+        processName: r.processName,
+        severity: r.severity,
+        status: r.status,
+        at: r.at,
+        text: r.text || ''
+      },
+      ip: req.ip
+    });
     res.json(r);
   })
 );
@@ -372,6 +434,17 @@ app.post(
           : b.kind === 'correct'
             ? `판정 수정 → ${b.correctedDefectName || ''}`
             : `신규 불량 제안: ${b.newDefectName || ''}`,
+      ref: { type: 'feedback', id: rec.id, recordId: b.recordId || '' },
+      detail: {
+        kind: b.kind,
+        originalDefectName: b.originalDefectName || '',
+        correctedDefectName: b.correctedDefectName || '',
+        newDefectName: b.newDefectName || '',
+        description: b.newDefectDescription || '',
+        processName: b.processName || '',
+        note: b.note || '',
+        recordId: b.recordId || ''
+      },
       ip: req.ip
     });
     res.json({ ok: true, id: rec.id });
