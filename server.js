@@ -23,9 +23,9 @@ const feedback = require('./lib/feedback');
 const security = require('./lib/security');
 
 const PORT = Number(process.env.PORT) || 3000;
-// 기본값은 루프백 — 외부에서는 반드시 Caddy(HTTPS)를 거치게 해서, 프록시를 우회한 직접 접속으로
-// X-Forwarded-For 를 위조(=요청 제한 우회·접속 IP 조작)하는 것을 막는다.
-const HOST = process.env.HOST || '127.0.0.1';
+// 기본값은 루프백('loopback' = 127.0.0.1 + ::1) — 외부에서는 반드시 Caddy(HTTPS)를 거치게 해서,
+// 프록시를 우회한 직접 접속으로 X-Forwarded-For 를 위조(=요청 제한 우회·접속 IP 조작)하는 것을 막는다.
+const HOST = process.env.HOST || 'loopback';
 const UPLOAD_DIR = path.join(__dirname, 'data', 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -653,14 +653,38 @@ app.use((err, req, res, next) => {
   res.status(status).json({ error: message, code: err.code || null });
 });
 
-app.listen(PORT, HOST, () => {
+function banner(bound) {
   const d = kb.load();
   console.log('');
-  console.log(`  (바인딩: ${HOST}:${PORT} — 외부 공개는 Caddy HTTPS 프록시를 통해서만)`);
+  console.log(`  (바인딩: ${bound.join(', ')} 포트 ${PORT} — 외부 공개는 Caddy HTTPS 프록시를 통해서만)`);
   console.log('  품질관리 불량분석 대시보드');
   console.log(`  http://localhost:${PORT}`);
   console.log('');
   console.log(`  KB v${d.version.kbVersion} — 공정 ${d.counts.processes}종 / 불량 ${d.counts.defects}건`);
   console.log(`  AI 분석: ${ai.enabled() ? '활성 (' + config.get().model + ')' : '비활성 — 대시보드 [설정]에서 API 키 등록'}`);
   console.log('');
-});
+}
+
+/**
+ * 루프백에만 귀를 연다. 프록시(Caddy)가 localhost 를 IPv4(127.0.0.1)로 풀 수도, IPv6(::1)로 풀 수도 있어서
+ * 둘 다 받아준다 — 한쪽만 열어두면 환경에 따라 502가 난다. HOST 를 지정하면 그 주소 하나만 사용한다.
+ */
+const HOSTS = HOST === 'loopback' ? ['127.0.0.1', '::1'] : [HOST];
+const bound = [];
+let pending = HOSTS.length;
+
+for (const h of HOSTS) {
+  const server = app.listen(PORT, h, () => {
+    bound.push(h);
+    if (--pending === 0) banner(bound);
+  });
+  server.on('error', (e) => {
+    // IPv6 가 없는 환경에서는 ::1 바인딩만 조용히 건너뛴다
+    if (h === '::1' && ['EADDRNOTAVAIL', 'EAFNOSUPPORT', 'EINVAL'].includes(e.code)) {
+      if (--pending === 0) banner(bound);
+      return;
+    }
+    console.error(`[FATAL] ${h}:${PORT} 바인딩 실패 —`, e.message);
+    process.exit(1);
+  });
+}
