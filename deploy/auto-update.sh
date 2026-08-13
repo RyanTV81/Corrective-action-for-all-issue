@@ -27,5 +27,6 @@ if git diff --name-only "$BEFORE" "$AFTER_REMOTE" | grep -qE '^package(-lock)?\.
 fi
 
 chown -R "$SERVICE_USER":"$SERVICE_USER" "$APP_DIR"
+chmod 700 "$APP_DIR/data" 2>/dev/null || true  # API 키·계정 정보가 든 폴더 권한 유지
 systemctl restart qc-dashboard
 echo "$LOG_TAG 적용 및 재시작 완료 (커밋 ${AFTER_REMOTE:0:7})"

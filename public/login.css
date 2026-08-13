@@ -1,0 +1,35 @@
+  :root { --brand: #0f3460; --brand-2: #1b5c96; --ink: #1b2532; --ink-2: #55637a; --line: #dfe4ec; --radius: 10px; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(160deg, #0f3460, #1b5c96); font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+    position: relative;
+  }
+  .langBtn {
+    position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,.15); color: #fff; border: 1px solid rgba(255,255,255,.4);
+    border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; font-weight: 700;
+  }
+  .box {
+    background: #fff; border-radius: 14px; padding: 34px 32px; width: 100%; max-width: 360px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.35);
+  }
+  .logo { font-size: 34px; text-align: center; margin-bottom: 6px; }
+  h1 { font-size: 17px; text-align: center; margin: 0 0 4px; color: var(--ink); }
+  p.sub { text-align: center; font-size: 12.5px; color: var(--ink-2); margin: 0 0 22px; }
+  label { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink-2); margin-bottom: 5px; }
+  input {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;
+    font-size: 14px; margin-bottom: 14px; font: inherit;
+  }
+  input:focus { outline: 2px solid var(--brand-2); outline-offset: 1px; }
+  button {
+    width: 100%; padding: 11px; border: 0; border-radius: 8px; background: var(--brand-2); color: #fff;
+    font-size: 14px; font-weight: 700; cursor: pointer; font: inherit;
+  }
+  button:disabled { opacity: .6; cursor: default; }
+  .err { color: #c8322c; font-size: 12.5px; margin: -6px 0 14px; min-height: 1em; }
+  .ok { color: #16785a; font-size: 12.5px; margin: -6px 0 14px; background: #e7f1ea; padding: 9px 11px; border-radius: 7px; }
+  .switch-link { text-align: center; margin-top: 4px; }
+  .switch-link a { font-size: 12.5px; color: var(--brand-2); cursor: pointer; text-decoration: none; }
+  .switch-link a:hover { text-decoration: underline; }
+  [hidden] { display: none !important; }

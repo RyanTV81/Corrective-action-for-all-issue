@@ -471,6 +471,17 @@ const state = {
 const esc = (s) =>
   String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/**
+ * href/src 에 넣어도 안전한 주소만 통과시킨다.
+ * 업로드 사진 경로(/uploads/…)와 http(s) 링크만 허용하고, javascript: 같은 실행형 주소는 버린다.
+ */
+function safeUrl(u) {
+  const s = String(u == null ? '' : u).trim();
+  if (/^\/uploads\/[A-Za-z0-9._-]+\.(jpg|jpeg|png|gif|webp)$/i.test(s)) return esc(s);
+  if (/^https?:\/\//i.test(s)) return esc(s);
+  return '';
+}
+
 const SEV = {
   critical: { ko: '치명', cls: 'high' },
   high: { ko: '중대', cls: 'high' },
@@ -956,7 +967,7 @@ function renderItemDetail(data) {
       ${whyChain}
       ${(ai.pitfalls || []).length ? `<div class="card"><h4>${t('흔한 실수 · 주의사항')}</h4><ul style="margin:0;padding-left:20px">${ai.pitfalls.map((s) => `<li>${esc(s)}</li>`).join('')}</ul></div>` : ''}
       ${(ai.similarCases || []).length ? `<div class="card"><h4>${t('유사 산업 사례')}</h4><div class="candidates">${ai.similarCases.map((c) => `<div class="cand"><b>${esc(c.title)}</b><span>${esc(c.summary)}</span></div>`).join('')}</div></div>` : ''}
-      ${(ai.sources || []).length ? `<div class="sources"><h5>${t('참고 출처 ')}${ai.sources.length}${t('건')}</h5>${ai.sources.map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || s.url)}</a>`).join('')}</div>` : ''}`;
+      ${(ai.sources || []).length ? `<div class="sources"><h5>${t('참고 출처 ')}${ai.sources.length}${t('건')}</h5>${ai.sources.map((s) => `<a href="${safeUrl(s.url)}" target="_blank" rel="noopener">${esc(s.title || s.url)}</a>`).join('')}</div>` : ''}`;
   } else {
     aiCard = `<div class="card"><h4>${t('AI 상세 설명 · 5-Why · 유사 산업 사례')}</h4>
       <p class="note">${data.aiError ? esc(data.aiError) : t('AI가 꺼져 있어 제공되지 않습니다. [설정]에서 Gemini API 키를 등록하고 AI 판독을 켜면, 이 항목에 대한 5-Why 근본원인 분석과 실행 절차·유사 사례를 볼 수 있습니다.')}</p>
@@ -1031,7 +1042,7 @@ function refHtml(r) {
 
   const shots = (r.images || []).length
     ? `<div class="card"><h4>${t('업로드 사진')}</h4><div class="shots">${r.images
-        .map((i) => `<a href="${i.url}" target="_blank"><img src="${i.url}" alt="${esc(i.name)}"></a>`)
+        .map((i) => `<a href="${safeUrl(i.url)}" target="_blank" rel="noopener"><img src="${safeUrl(i.url)}" alt="${esc(i.name)}"></a>`)
         .join('')}</div></div>`
     : '';
 
@@ -1068,7 +1079,7 @@ function refHtml(r) {
         <p>${esc(web.summary || '')}</p>
         ${web.mechanism ? `<p class="hint" style="margin-top:8px"><b>${t('발생 메커니즘:')}</b> ${esc(web.mechanism)}</p>` : ''}
         ${(web.sources || []).length ? `<div class="sources"><h5>${t('참고 자료 ')}${web.sources.length}${t('건')}</h5>${web.sources
-            .map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || s.url)}</a>`)
+            .map((s) => `<a href="${safeUrl(s.url)}" target="_blank" rel="noopener">${esc(s.title || s.url)}</a>`)
             .join('')}</div>` : ''}
       </div>`
     : `<div class="card"><h4>${t('인터넷 조사')}</h4><p class="note">${
@@ -1175,7 +1186,7 @@ async function loadHistory() {
         const s = sev(r.severity);
         return `<tr class="hRow" data-id="${r.id}" tabindex="0" role="button" aria-label="${esc(t('결과 보기'))}">
           <td class="nowrap">${fmtDate(r.at)}<br><small>${esc(r.id)}</small></td>
-          <td>${r.thumb ? `<a href="${r.thumb}" target="_blank"><img src="${r.thumb}" alt=""></a>` : ''}</td>
+          <td>${r.thumb ? `<a href="${safeUrl(r.thumb)}" target="_blank" rel="noopener"><img src="${safeUrl(r.thumb)}" alt=""></a>` : ''}</td>
           <td>${esc(r.processName || '-')}</td>
           <td><b>${esc(r.defectName)}</b>${r.aiUsed ? ' <span class="badge ai">AI</span>' : ''}</td>
           <td><span class="tag ${s.cls}">${t(s.ko)}</span></td>
@@ -1184,7 +1195,11 @@ async function loadHistory() {
           <td><select class="hStatus" data-id="${r.id}">${['조치중', '검증중', '완료', '보류']
             .map((s2) => `<option value="${s2}"${s2 === r.status ? ' selected' : ''}>${t(s2)}</option>`)
             .join('')}</select></td>
-          <td><button class="btn small hDel" data-id="${r.id}" style="margin:0;width:auto;padding:4px 9px">${t('삭제')}</button></td>
+          <td>${
+            state.role === 'admin'
+              ? `<button class="btn small hDel" data-id="${r.id}" style="margin:0;width:auto;padding:4px 9px">${t('삭제')}</button>`
+              : ''
+          }</td>
         </tr>`;
       })
       .join('');
@@ -1286,7 +1301,7 @@ async function renderKbList() {
               (d) => `<div class="kb-def">
                 <b>${esc(LANG === 'en' && d.nameEn ? d.nameEn : d.name)} <span class="tag ${sev(d.severity).cls}">${t(sev(d.severity).ko)}</span></b>
                 <p>${esc(d.description)}</p>
-                ${(d.images || []).length ? `<div class="shots fb-shots">${d.images.map((u) => `<a href="${u}" target="_blank"><img src="${u}" alt=""></a>`).join('')}</div>` : ''}
+                ${(d.images || []).length ? `<div class="shots fb-shots">${d.images.map((u) => `<a href="${safeUrl(u)}" target="_blank" rel="noopener"><img src="${safeUrl(u)}" alt=""></a>`).join('')}</div>` : ''}
                 <button class="btn small kbGo" data-id="${d.id}" style="width:auto;padding:4px 10px;margin-top:6px">${t('이 불량의 원인·조치·대책 보기')}</button>
               </div>`
             )
@@ -1346,24 +1361,42 @@ async function openKbDefect(defectId) {
 /* 설정                                                                 */
 /* ------------------------------------------------------------------ */
 
+/**
+ * API 키·모델·업데이트 주소는 관리자만 다룬다(서버도 같은 기준으로 막고 있다).
+ * 일반 사용자에게는 해당 입력칸 자체를 감춘다.
+ */
+function applyRoleToSettingsForm() {
+  const admin = state.role === 'admin';
+  ['fldApiKey', 'fldApiKeysExtra', 'fldModel', 'fldUpdUrl', 'fldNotify'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.hidden = !admin;
+  });
+  const upd = $('#btnUpdate');
+  if (upd) upd.hidden = !admin;
+}
+
 function applySettingsToForm() {
   const s = state.settings;
   if (!s) return;
+  const admin = state.role === 'admin';
+  applyRoleToSettingsForm();
+
+  $('#cfgUseAI').checked = s.useAI;
+  $('#cfgUseWeb').checked = s.useWeb;
+  $('#cfgLine').value = s.line || '';
+  $('#cfgInspector').value = s.inspector || '';
+  $('#useAI').checked = s.useAI;
+  $('#useWeb').checked = s.useWeb;
+
+  if (!admin) return; // 아래 값들은 서버가 관리자에게만 내려준다
+
   $('#cfgModel').innerHTML = s.models.map((m) => `<option value="${m.id}"${m.id === s.model ? ' selected' : ''}>${esc(t(m.name))}</option>`).join('');
   $('#cfgEffort').innerHTML = s.efforts.map((e) => `<option value="${e.id}"${e.id === s.effort ? ' selected' : ''}>${esc(t(e.name))}</option>`).join('');
   $('#cfgKey').value = '';
   $('#cfgKey').placeholder = s.hasApiKey ? s.apiKeyMasked + (s.keyFromEnv ? `  (${t('환경변수')})` : '') : 'AIzaSy...';
   $('#cfgKeysExtra').value = (s.apiKeysExtra || []).join('\n');
   $('#cfgKeyCountHint').textContent = `${t('현재 총 ')}${s.totalKeyCount || 0}${t('개 키가 등록되어 있습니다.')}`;
-  $('#cfgUseAI').checked = s.useAI;
-  $('#cfgUseWeb').checked = s.useWeb;
-  $('#cfgLine').value = s.line || '';
-  $('#cfgInspector').value = s.inspector || '';
   $('#cfgUpdUrl').value = s.updateManifestUrl || '';
-  $('#useAI').checked = s.useAI;
-  $('#useWeb').checked = s.useWeb;
-
-  $('#fldNotify').hidden = state.role !== 'admin';
   $('#cfgSmtpUser').value = s.smtpUser || '';
   $('#cfgSmtpPass').value = '';
   $('#cfgSmtpPass').placeholder = s.hasSmtp ? s.smtpPassMasked + (s.smtpFromEnv ? `  (${t('환경변수')})` : '') : t('16자리 앱 비밀번호');
@@ -1372,22 +1405,22 @@ function applySettingsToForm() {
 
 async function saveSettings() {
   const body = {
-    model: $('#cfgModel').value,
-    effort: $('#cfgEffort').value,
     useAI: $('#cfgUseAI').checked,
     useWeb: $('#cfgUseWeb').checked,
     line: $('#cfgLine').value,
-    inspector: $('#cfgInspector').value,
-    updateManifestUrl: $('#cfgUpdUrl').value
+    inspector: $('#cfgInspector').value
   };
-  const key = $('#cfgKey').value.trim();
-  if (key) body.apiKey = key;
-  body.apiKeysExtra = $('#cfgKeysExtra')
-    .value.split('\n')
-    .map((x) => x.trim())
-    .filter(Boolean);
 
   if (state.role === 'admin') {
+    body.model = $('#cfgModel').value;
+    body.effort = $('#cfgEffort').value;
+    body.updateManifestUrl = $('#cfgUpdUrl').value;
+    const key = $('#cfgKey').value.trim();
+    if (key) body.apiKey = key;
+    body.apiKeysExtra = $('#cfgKeysExtra')
+      .value.split('\n')
+      .map((x) => x.trim())
+      .filter(Boolean);
     body.smtpUser = $('#cfgSmtpUser').value.trim();
     body.notifyEmail = $('#cfgNotifyEmail').value.trim();
     const smtpPass = $('#cfgSmtpPass').value.trim();
@@ -1925,7 +1958,7 @@ function renderFeedback(items, total) {
         <div class="item-main${hasExtra ? ' fb-toggle' : ''}"${hasExtra ? ' role="button" tabindex="0" aria-expanded="false"' : ''}>
           <div class="item-text">${t(FB_KIND_KO[x.kind])} ${esc(x.originalDefectName || '?')} → ${esc(target)}</div>
           <div class="item-sub">${esc(x.submittedBy)} · ${esc(x.processName || '-')} · ${fmtDate(x.at)}${x.note ? ' · ' + t('메모: ') + esc(x.note) : ''}</div>
-          ${(x.imageUrls || []).length ? `<div class="shots fb-shots">${x.imageUrls.map((u) => `<a href="${u}" target="_blank"><img src="${u}" alt=""></a>`).join('')}</div>` : ''}
+          ${(x.imageUrls || []).length ? `<div class="shots fb-shots">${x.imageUrls.map((u) => `<a href="${safeUrl(u)}" target="_blank" rel="noopener"><img src="${safeUrl(u)}" alt=""></a>`).join('')}</div>` : ''}
           <div class="item-meta">
             <span class="tag ${x.status === 'confirmed' ? 'proc' : x.status === 'rejected' ? 'high' : 'medium'}">${t(FB_STATUS_KO[x.status])}</span>
             ${x.addedToKb ? `<span class="badge ai">${t('KB 등록됨')}</span>` : ''}

@@ -93,6 +93,8 @@ if [ ! -d "$APP_DIR/kb" ] || [ -z "$(ls -A "$APP_DIR/kb" 2>/dev/null)" ]; then
 fi
 mkdir -p "$APP_DIR/data/uploads"
 chown -R "$SERVICE_USER":"$SERVICE_USER" "$APP_DIR"
+# data/ 에는 API 키·계정 해시·업로드 사진이 들어간다 — 앱 계정 외에는 읽지 못하게 한다
+chmod 700 "$APP_DIR/data"
 
 echo "==> [5/7] 로그인 비밀번호 설정"
 ENV_FILE="$APP_DIR/.env"
@@ -130,8 +132,24 @@ EnvironmentFile=$ENV_FILE
 Restart=always
 RestartSec=5
 User=$SERVICE_USER
+# --- 보안: 앱이 뚫리더라도 서버 전체로 번지지 않도록 권한을 좁힌다 ---
 NoNewPrivileges=true
 ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+# 쓰기가 필요한 곳은 이 두 폴더뿐이다
 ReadWritePaths=$APP_DIR/data $APP_DIR/kb
 
 [Install]
@@ -151,9 +169,20 @@ echo "==> [7/7] Caddy 리버스 프록시 + 자동 HTTPS 설정"
 EXT_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip")
 DOMAIN="${EXT_IP//./-}.sslip.io"
 
+# 앱(node)은 127.0.0.1:3000 에만 귀를 열어두므로, 외부에서 들어올 수 있는 길은 이 HTTPS 프록시뿐이다.
 cat > /etc/caddy/Caddyfile <<EOF
 $DOMAIN {
-	reverse_proxy localhost:3000
+	reverse_proxy 127.0.0.1:3000
+
+	# 업로드 사진(12MB×6) 여유분. 그 이상은 프록시 단계에서 잘라 서버 부담을 막는다.
+	request_body {
+		max_size 80MB
+	}
+}
+
+# HTTP 로 들어온 요청은 전부 HTTPS 로 돌려보낸다
+http://$DOMAIN {
+	redir https://$DOMAIN{uri} permanent
 }
 EOF
 
