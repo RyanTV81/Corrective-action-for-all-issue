@@ -540,6 +540,53 @@ app.post('/api/admin/feedback/:id/decide', auth.requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+/**
+ * 피드백 기록 삭제.
+ * 확정됐거나 지식베이스에 등록한 건은 이미 학습·판독에 쓰이고 있으므로, 로그인 상태만으로는 지우지 못하게
+ * 관리자 비밀번호를 한 번 더 확인한다. 지식베이스에 등록해 둔 불량 항목 자체는 지우지 않는다.
+ */
+app.delete('/api/admin/feedback/:id', auth.requireAdmin, (req, res) => {
+  const rec = feedback.get(req.params.id);
+  if (!rec) return res.status(404).json({ error: '피드백을 찾을 수 없습니다' });
+
+  const needsPassword = rec.status === 'confirmed' || rec.addedToKb;
+  if (needsPassword) {
+    // 이 통로로 비밀번호를 찍어보지 못하도록 횟수를 제한한다
+    const key = 'fb-delete:' + req.ip;
+    if (security.hit(key, 5, 10 * 60 * 1000)) {
+      return res.status(429).json({ error: '시도가 너무 많습니다. 잠시 후 다시 시도하세요.' });
+    }
+    // 401 은 화면 쪽에서 "세션 만료 → 로그인 화면으로" 처리하는 코드라, 비밀번호 오류는 403 으로 구분한다
+    if (!auth.checkAdminPassword(req, (req.body || {}).password)) {
+      return res.status(403).json({ error: '관리자 비밀번호가 올바르지 않습니다', code: 'BAD_PASSWORD' });
+    }
+    security.reset(key);
+  }
+
+  feedback.remove(rec.id);
+
+  // 되돌릴 수 없는 작업이므로 무엇을 지웠는지 활동 이력에 남긴다.
+  // (지워진 피드백을 가리키는 ref 는 넣지 않는다 — 눌러도 열 수 없다)
+  const statusKo = { pending: '검토 대기', confirmed: '확정됨', rejected: '거부됨' }[rec.status] || rec.status;
+  const target = rec.kind === 'new_defect' ? rec.newDefectName : rec.kind === 'correct' ? rec.correctedDefectName : '(확인만)';
+  activity.log({
+    username: req.authUser,
+    role: 'admin',
+    action: 'feedback_delete',
+    label: `[${statusKo}${rec.addedToKb ? '·KB 등록' : ''}] ${rec.originalDefectName || '?'} → ${target}`,
+    detail: {
+      kind: rec.kind,
+      processName: rec.processName || '',
+      originalDefectName: rec.originalDefectName || '',
+      correctedDefectName: rec.correctedDefectName || '',
+      newDefectName: rec.newDefectName || '',
+      submittedBy: rec.submittedBy || ''
+    },
+    ip: req.ip
+  });
+  res.json({ ok: true });
+});
+
 /** 신규 불량 제안을 실제 지식베이스에 추가 (관리자가 원인/조치/대책을 정리해서 등록) */
 app.post(
   '/api/admin/feedback/:id/add-to-kb',

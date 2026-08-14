@@ -280,6 +280,15 @@ const I18N_EN = {
   '확정했습니다. 「확정됨」 탭에서 볼 수 있습니다.': 'Confirmed — see the “Confirmed” tab.',
   '거부했습니다. 「거부됨」 탭에서 볼 수 있습니다.': 'Rejected — see the “Rejected” tab.',
   '확정했습니다.': 'Confirmed.',
+  '학습 피드백 삭제': 'Delete Learning Feedback',
+  '이미 확정되어 사진판독 참고자료로 쓰이고 있는 기록입니다. 삭제하면 되돌릴 수 없습니다.':
+    'This entry is confirmed and already used as reference for photo analysis. Deleting it cannot be undone.',
+  '지식베이스에 등록해 둔 불량 항목은 지워지지 않고 그대로 남습니다.': 'The defect entry registered in the knowledge base is kept and will not be removed.',
+  '확인을 위해 관리자 비밀번호를 입력하세요': 'Enter the admin password to confirm',
+  '관리자 비밀번호를 입력하세요.': 'Please enter the admin password.',
+  '이 피드백 기록을 삭제할까요?': 'Delete this feedback entry?',
+  '삭제했습니다.': 'Deleted.',
+  '제출자': 'Submitted By',
   '메모: ': 'Note: ',
   '새 불량 설명': 'New Defect Description',
   '시각 특징': 'Visual Features',
@@ -1551,13 +1560,15 @@ const ACTIVITY_ACTION_KO = {
   history_view: '이력 조회',
   item_detail: '상세정보 조회',
   kb_view: '지식베이스 조회',
-  feedback: '학습 피드백'
+  feedback: '학습 피드백',
+  feedback_delete: '학습 피드백 삭제'
 };
 
 /* 행을 펼쳤을 때 보여줄 항목 — 표시 순서대로 나열한다. */
 const ACT_FIELD_KO = {
   kind: '구분',
   text: '입력 내용',
+  submittedBy: '제출자',
   defectName: '불량명',
   originalDefectName: '기존 판정',
   correctedDefectName: '수정 판정',
@@ -1628,7 +1639,7 @@ let activityItems = [];
 /** 펼친 상세에서 항목 1개를 어떻게 보여줄지 (값은 반드시 이스케이프해서 반환) */
 function actFieldValueHtml(key, v, action) {
   if (key === 'kind') {
-    const ko = action === 'feedback' ? FB_KIND_KO[v] : ITEM_KIND_KO[v];
+    const ko = String(action).startsWith('feedback') ? FB_KIND_KO[v] : ITEM_KIND_KO[v];
     return esc(ko ? t(ko) : String(v));
   }
   if (key === 'severity') {
@@ -2013,6 +2024,7 @@ function renderFeedback(items, total) {
           ${x.status !== 'confirmed' ? `<button class="btn small fbConfirm" style="width:auto;padding:4px 9px">${t('확정')}</button>` : ''}
           ${x.status !== 'rejected' ? `<button class="btn small fbReject" style="width:auto;padding:4px 9px">${t('거부')}</button>` : ''}
           ${x.kind === 'new_defect' && !x.addedToKb && x.status !== 'rejected' ? `<button class="btn small primary fbAddKb" style="width:auto;padding:4px 9px">${t('KB 등록')}</button>` : ''}
+          <button class="btn small fbDelete" style="width:auto;padding:4px 9px">${t('삭제')}</button>
         </div>
       </div>`;
     })
@@ -2050,6 +2062,7 @@ function renderFeedback(items, total) {
   $$('.fbConfirm', box).forEach((b) => b.addEventListener('click', (e) => decideFeedback(e.target.closest('[data-id]').dataset.id, 'confirmed')));
   $$('.fbReject', box).forEach((b) => b.addEventListener('click', (e) => decideFeedback(e.target.closest('[data-id]').dataset.id, 'rejected')));
   $$('.fbAddKb', box).forEach((b) => b.addEventListener('click', (e) => openKbAdd(e.target.closest('[data-id]').dataset.id, items)));
+  $$('.fbDelete', box).forEach((b) => b.addEventListener('click', (e) => askDeleteFeedback(e.target.closest('[data-id]').dataset.id, items)));
 
   if (fbHighlightId) {
     const el = $$('.item', box).find((n) => n.dataset.id === fbHighlightId);
@@ -2076,6 +2089,69 @@ async function decideFeedback(id, status) {
     loadFeedback();
   } catch (e) {
     toast(e.message, true);
+  }
+}
+
+/** 목록 1건을 한 줄 글로 (삭제 확인창에 그대로 보여줄 용도 — textContent 로 넣으므로 이스케이프 불필요) */
+function fbSummaryText(x) {
+  const target = x.kind === 'new_defect' ? x.newDefectName : x.kind === 'correct' ? x.correctedDefectName : t('(확인만)');
+  return `${t(FB_KIND_KO[x.kind])} ${x.originalDefectName || '?'} → ${target}\n${x.submittedBy} · ${x.processName || '-'} · ${fmtDate(x.at)}`;
+}
+
+/** 삭제 확인창이 지우려는 대상 */
+let fbDeleteId = null;
+
+/**
+ * 확정됐거나 지식베이스에 등록한 건은 이미 학습에 쓰이고 있으므로 관리자 비밀번호를 한 번 더 받는다.
+ * 아직 검토 전이거나 거부한 건은 학습에 반영되지 않았으므로 확인창만 띄운다.
+ */
+function askDeleteFeedback(id, items) {
+  const rec = items.find((x) => x.id === id);
+  if (!rec) return;
+
+  if (rec.status !== 'confirmed' && !rec.addedToKb) {
+    if (confirm(t('이 피드백 기록을 삭제할까요?'))) deleteFeedback(id).catch((e) => toast(e.message, true));
+    return;
+  }
+
+  fbDeleteId = id;
+  $('#fbDelTarget').textContent = fbSummaryText(rec);
+  $('#fbDelKbNote').hidden = !rec.addedToKb;
+  $('#fbDelPw').value = '';
+  $('#fbDelErr').hidden = true;
+  openModal('mdFbDelete');
+  $('#fbDelPw').focus();
+}
+
+/** @param {string} [password] 확정·KB 등록 건에만 필요 */
+async function deleteFeedback(id, password) {
+  const opt = { method: 'DELETE' };
+  if (password !== undefined) {
+    opt.headers = { 'content-type': 'application/json' };
+    opt.body = JSON.stringify({ password });
+  }
+  await api(`/api/admin/feedback/${id}`, opt);
+  toast(t('삭제했습니다.'));
+  loadFeedback();
+}
+
+async function submitFbDelete() {
+  if (!fbDeleteId) return;
+  const err = $('#fbDelErr');
+  const pw = $('#fbDelPw').value;
+  if (!pw) {
+    err.hidden = false;
+    err.textContent = t('관리자 비밀번호를 입력하세요.');
+    return;
+  }
+  try {
+    await deleteFeedback(fbDeleteId, pw);
+    closeModal('mdFbDelete'); // 비밀번호 입력값도 여기서 함께 지워진다
+  } catch (e) {
+    // 비밀번호가 틀린 경우 — 창을 닫지 않고 자리에서 다시 입력받는다
+    err.hidden = false;
+    err.textContent = e.message;
+    $('#fbDelPw').select();
   }
 }
 
@@ -2150,7 +2226,14 @@ async function submitKbAdd() {
 /* ------------------------------------------------------------------ */
 
 const openModal = (id) => ($(`#${id}`).hidden = false);
-const closeModal = (id) => ($(`#${id}`).hidden = true);
+const closeModal = (id) => {
+  $(`#${id}`).hidden = true;
+  // 입력해둔 관리자 비밀번호를 창에 남겨두지 않는다 (어떤 방식으로 닫든)
+  if (id === 'mdFbDelete') {
+    $('#fbDelPw').value = '';
+    fbDeleteId = null;
+  }
+};
 
 function bindStaticEvents() {
   $('#btnLang').addEventListener('click', () => setLang(LANG === 'en' ? 'ko' : 'en'));
@@ -2222,6 +2305,8 @@ function bindStaticEvents() {
   $('#fbKindNew').addEventListener('change', toggleFbKind);
   $('#btnFbSubmit').addEventListener('click', submitFeedbackCorrection);
   $('#btnKaSubmit').addEventListener('click', submitKbAdd);
+  $('#btnFbDelete').addEventListener('click', submitFbDelete);
+  $('#fbDelPw').addEventListener('keydown', (e) => e.key === 'Enter' && submitFbDelete());
   $('#btnLogout').addEventListener('click', async () => {
     try {
       await api('/api/logout', { method: 'POST' });
@@ -2233,11 +2318,11 @@ function bindStaticEvents() {
   $$('[data-close]').forEach((b) => b.addEventListener('click', () => closeModal(b.dataset.close)));
   $$('.modal').forEach((m) =>
     m.addEventListener('click', (e) => {
-      if (e.target === m) m.hidden = true;
+      if (e.target === m) closeModal(m.id);
     })
   );
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') $$('.modal').forEach((m) => (m.hidden = true));
+    if (e.key === 'Escape') $$('.modal').forEach((m) => closeModal(m.id));
   });
 }
 
