@@ -21,6 +21,7 @@ const users = require('./lib/users');
 const activity = require('./lib/activity');
 const feedback = require('./lib/feedback');
 const insights = require('./lib/insights');
+const itemcache = require('./lib/itemcache');
 const security = require('./lib/security');
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -370,20 +371,33 @@ app.post(
 
     let aiResult = null;
     let aiError = null;
+    let fromCache = false;
+    let cachedAt = null;
     const cfg = config.get();
     const useAI = (b.useAI === undefined ? cfg.useAI : truthy(b.useAI)) && ai.enabled();
+    const cacheKey = { kind, text, defectName: b.defectName || '', lang: b.lang === 'en' ? 'en' : 'ko' };
+
     if (useAI) {
-      try {
-        aiResult = await ai.explainItem({
-          text,
-          kind,
-          rationale: b.rationale || '',
-          defectName: b.defectName || '',
-          processName: b.processName || '',
-          lang: b.lang === 'en' ? 'en' : 'ko'
-        });
-      } catch (e) {
-        aiError = e.message;
+      // 같은 항목을 전에 설명한 적이 있으면 그것을 그대로 쓴다 (같은 내용을 다시 물어보지 않는다)
+      const hit = itemcache.get(cacheKey);
+      if (hit) {
+        aiResult = hit.value;
+        fromCache = true;
+        cachedAt = hit.savedAt;
+      } else {
+        try {
+          aiResult = await ai.explainItem({
+            text,
+            kind,
+            rationale: b.rationale || '',
+            defectName: b.defectName || '',
+            processName: b.processName || '',
+            lang: cacheKey.lang
+          });
+          itemcache.put(cacheKey, aiResult);
+        } catch (e) {
+          aiError = e.message;
+        }
       }
     }
 
@@ -415,7 +429,7 @@ app.post(
       ip: req.ip
     });
 
-    res.json({ ok: true, local, ai: aiResult, aiError });
+    res.json({ ok: true, local, ai: aiResult, aiError, fromCache, cachedAt });
   })
 );
 
@@ -622,7 +636,13 @@ app.post(
 /* ------------------------------------------------------------------ */
 
 app.get('/api/admin/insights', auth.requireAdmin, (req, res) => {
-  res.json(insights.list(req.query));
+  res.json({ ...insights.list(req.query), itemCache: itemcache.stats() });
+});
+
+/** 항목 상세 설명 보관함 비우기 — 설명이 낡았다고 판단될 때 */
+app.delete('/api/admin/item-cache', auth.requireAdmin, (req, res) => {
+  const cleared = itemcache.clear();
+  res.json({ ok: true, cleared });
 });
 
 /** 웹에서 가져온 내용이라 잘못된 것이 섞일 수 있다 — 불량 단위로 통째로 지운다 */

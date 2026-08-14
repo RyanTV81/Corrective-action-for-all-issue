@@ -198,6 +198,14 @@ const I18N_EN = {
   '조치': 'Actions',
   '대책': 'Measures',
   '쌓인 조사 삭제': 'Accumulated research deleted',
+  '설명 보관함 비우기': 'Clear kept explanations',
+  '보관된 항목 설명을 모두 지울까요? 다음에 열 때 다시 만들어집니다(API 사용).':
+    'Delete all kept item explanations? They will be regenerated on next open (uses the API).',
+  '비웠습니다.': 'Cleared.',
+  '보관된 설명': 'Kept explanation',
+  '전에 만들어 둔 설명입니다 — API를 다시 부르지 않았습니다.': 'Reused from an earlier run — no API call was made.',
+  '이미 조사해둔 내용이 충분해서 인터넷을 다시 뒤지지 않았습니다 (API 사용량 절약). 아래 [쌓인 조사 내용]이 그대로 반영됐습니다. 새로 조사하려면 [사용자 관리 → 쌓인 조사]에서 이 불량의 내용을 지우세요.':
+    'Enough was already researched for this defect, so no new web search was made (saves API usage). The accumulated findings below were applied instead. To research it fresh, delete this defect under [User Management → Accumulated].',
   '전체 사용자': 'All Users',
   '전체 활동': 'All Activities',
   '로그인': 'Login',
@@ -1004,7 +1012,10 @@ function renderItemDetail(data) {
       : '';
 
     aiCard = `
-      <div class="card"><h4>${t('상세 설명')} ${ai._grounded === false ? `<span class="badge">${t('대체 웹검색')}</span>` : ''}</h4>
+      <div class="card"><h4>${t('상세 설명')} ${ai._grounded === false ? `<span class="badge">${t('대체 웹검색')}</span>` : ''}${
+        data.fromCache ? ` <span class="badge">${t('보관된 설명')}</span>` : ''
+      }</h4>
+        ${data.fromCache ? `<p class="hint" style="margin-bottom:6px">${t('전에 만들어 둔 설명입니다 — API를 다시 부르지 않았습니다.')}${data.cachedAt ? ' · ' + fmtDate(data.cachedAt) : ''}</p>` : ''}
         <p>${esc(ai.detail || '')}</p>
         ${ai.mechanism ? `<p class="hint" style="margin-top:8px"><b>${t('원리:')}</b> ${esc(ai.mechanism)}</p>` : ''}
       </div>
@@ -1146,7 +1157,11 @@ function refHtml(r) {
             .join('')}</div>` : ''}
       </div>`
     : `<div class="card"><h4>${t('인터넷 조사')}</h4><p class="note">${
-        r.aiEnabled ? t('이번 분석에서는 인터넷 조사를 사용하지 않았습니다.') : t('API 키가 없어 인터넷 조사를 사용할 수 없습니다. [설정]에서 등록하면 최신 기술자료를 종합해 원인·조치·대책에 반영합니다.')
+        k && k.servedWithoutSearch
+          ? t('이미 조사해둔 내용이 충분해서 인터넷을 다시 뒤지지 않았습니다 (API 사용량 절약). 아래 [쌓인 조사 내용]이 그대로 반영됐습니다. 새로 조사하려면 [사용자 관리 → 쌓인 조사]에서 이 불량의 내용을 지우세요.')
+          : r.aiEnabled
+            ? t('이번 분석에서는 인터넷 조사를 사용하지 않았습니다.')
+            : t('API 키가 없어 인터넷 조사를 사용할 수 없습니다. [설정]에서 등록하면 최신 기술자료를 종합해 원인·조치·대책에 반영합니다.')
       }</p></div>`;
 
   const detect = r.defect && r.defect.detect
@@ -2296,11 +2311,11 @@ async function loadInsights() {
   const box = $('#insightResults');
   box.innerHTML = `<small>${t('불러오는 중…')}</small>`;
   try {
-    const { items, total, stats } = await api('/api/admin/insights?limit=100');
+    const { items, total, stats, itemCache } = await api('/api/admin/insights?limit=100');
     const badge = $('#cntInsights');
     badge.hidden = !stats.defects;
     badge.textContent = stats.defects;
-    renderInsights(items, total, stats);
+    renderInsights(items, total, stats, itemCache);
   } catch (e) {
     box.innerHTML = `<small>${t('불러오지 못했습니다: ')}${esc(e.message)}</small>`;
   }
@@ -2315,10 +2330,39 @@ function insightItemHtml(key, listName, text, extra) {
   </div>`;
 }
 
-function renderInsights(items, total, stats) {
+function renderInsights(items, total, stats, itemCache) {
   const box = $('#insightResults');
+
+  // 항목 상세 설명 보관함 — 같은 항목을 다시 열 때 API 를 안 부르려고 모아둔 것
+  const cacheBox = itemCache
+    ? `<div class="note" style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <span>${
+          LANG === 'en'
+            ? `Item explanations kept: ${itemCache.entries} (reused ${itemCache.hits} times without an API call)`
+            : `보관된 항목 설명 ${itemCache.entries}건 · API 없이 재사용 ${itemCache.hits}회`
+        }</span>
+        <button class="btn small" id="btnClearItemCache" style="width:auto;padding:3px 10px;margin:0">${t('설명 보관함 비우기')}</button>
+      </div>`
+    : '';
+
+  const bindCacheBtn = () => {
+    const b = $('#btnClearItemCache');
+    if (!b) return;
+    b.addEventListener('click', async () => {
+      if (!confirm(t('보관된 항목 설명을 모두 지울까요? 다음에 열 때 다시 만들어집니다(API 사용).'))) return;
+      try {
+        await api('/api/admin/item-cache', { method: 'DELETE' });
+        toast(t('비웠습니다.'));
+        loadInsights();
+      } catch (e) {
+        toast(e.message, true);
+      }
+    });
+  };
+
   if (!items.length) {
-    box.innerHTML = `<p class="note">${t('아직 쌓인 조사 내용이 없습니다. 분석할 때 [인터넷 조사]를 켜면 여기에 쌓입니다.')}</p>`;
+    box.innerHTML = `<p class="note">${t('아직 쌓인 조사 내용이 없습니다. 분석할 때 [인터넷 조사]를 켜면 여기에 쌓입니다.')}</p>${cacheBox}`;
+    bindCacheBtn();
     return;
   }
 
@@ -2371,7 +2415,9 @@ function renderInsights(items, total, stats) {
       LANG === 'en'
         ? `${items.length} of ${total} defects · ${stats.runs} research runs · ${stats.sources} references`
         : `불량 ${items.length}종 (전체 ${total}종) · 누적 조사 ${stats.runs}회 · 참고 자료 ${stats.sources}건`
-    }</p>`;
+    }</p>${cacheBox}`;
+
+  bindCacheBtn();
 
   $$('.ins-toggle', box).forEach((el) => {
     const extra = el.querySelector('.fb-extra');
