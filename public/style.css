@@ -287,6 +287,10 @@ input:focus, textarea:focus, select:focus {
 }
 .tab.active .cnt { background: var(--brand-2); color: #fff; }
 
+/* 탭 안의 하위 탭 (학습 피드백 상태별 구분) */
+.tabs.sub { border-bottom-width: 1px; margin-bottom: 12px; }
+.tabs.sub .tab { padding: 6px 11px; font-size: 12.5px; border-bottom-width: 2px; margin-bottom: -1px; }
+
 /* 항목 리스트 */
 .item-list { counter-reset: n; }
 .item {
@@ -339,6 +343,7 @@ input:focus, textarea:focus, select:focus {
 
 .shots { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .shots img { width: 120px; height: 120px; object-fit: cover; border-radius: 7px; border: 1px solid var(--line); }
+.fb-review { color: var(--ink-3); font-size: 11.5px; }
 .fb-shots { margin-top: 6px; }
 .fb-shots img { width: 56px; height: 56px; }
 .fb-toggle { cursor: pointer; border-radius: 6px; }

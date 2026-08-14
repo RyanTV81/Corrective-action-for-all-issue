@@ -272,7 +272,13 @@ const I18N_EN = {
   'KB 등록됨': 'Added to KB',
   '확정': 'Confirm',
   'KB 등록': 'Add to KB',
+  '전체': 'All',
   '피드백이 없습니다.': 'No feedback.',
+  '검토 대기 중인 피드백이 없습니다.': 'No feedback awaiting review.',
+  '확정된 피드백이 없습니다.': 'No confirmed feedback.',
+  '거부된 피드백이 없습니다.': 'No rejected feedback.',
+  '확정했습니다. 「확정됨」 탭에서 볼 수 있습니다.': 'Confirmed — see the “Confirmed” tab.',
+  '거부했습니다. 「거부됨」 탭에서 볼 수 있습니다.': 'Rejected — see the “Rejected” tab.',
   '확정했습니다.': 'Confirmed.',
   '메모: ': 'Note: ',
   '새 불량 설명': 'New Defect Description',
@@ -1587,7 +1593,7 @@ function switchUsersTab(tab) {
   $$('#mdUsers [data-utab-body]').forEach((el) => (el.hidden = el.dataset.utabBody !== tab));
   if (tab === 'signup') loadUsers();
   else if (tab === 'activity') loadActivity();
-  else loadFeedback();
+  else switchFeedbackTab(fbTab);
 }
 
 async function loadActivity() {
@@ -1728,7 +1734,9 @@ function openActivityTarget(x) {
       recordId: ref.recordId || null
     });
   } else if (ref.type === 'feedback') {
+    // 찾는 피드백이 이미 확정·거부됐을 수 있으므로 전체 탭에서 찾는다.
     fbHighlightId = ref.id;
+    fbTab = 'all';
     switchUsersTab('feedback');
   }
 }
@@ -1907,25 +1915,55 @@ async function submitFeedbackCorrection() {
 const FB_KIND_KO = { confirm: '[확인]', correct: '[수정]', new_defect: '[신규 제안]' };
 const FB_STATUS_KO = { pending: '검토 대기', confirmed: '확정됨', rejected: '거부됨' };
 
+/* 검토가 끝난 건(확정·거부)은 대기 목록에 섞이면 묻히므로 상태별 탭으로 나눠서 관리한다. */
+const FB_EMPTY_KO = {
+  pending: '검토 대기 중인 피드백이 없습니다.',
+  confirmed: '확정된 피드백이 없습니다.',
+  rejected: '거부된 피드백이 없습니다.',
+  all: '피드백이 없습니다.'
+};
+
 /** 활동 이력에서 넘어왔을 때 눈에 띄게 표시할 피드백 id */
 let fbHighlightId = null;
+/** 학습 피드백 하위 탭 — pending | confirmed | rejected | all */
+let fbTab = 'pending';
 
 async function refreshFbPendingCount() {
   try {
-    const { items } = await api('/api/admin/feedback?status=pending');
+    const { counts } = await api('/api/admin/feedback?status=pending&limit=1');
     const badge = $('#cntFbPending');
-    badge.hidden = items.length === 0;
-    badge.textContent = items.length;
+    badge.hidden = counts.pending === 0;
+    badge.textContent = counts.pending;
   } catch (e) {
     /* 관리자가 아니면 조용히 무시 */
   }
+}
+
+function switchFeedbackTab(tab) {
+  fbTab = tab;
+  $$('#fbTabs .tab').forEach((b) => b.classList.toggle('active', b.dataset.ftab === tab));
+  loadFeedback();
+}
+
+function renderFbTabCounts(counts) {
+  if (!counts) return;
+  $('#cntFbTabPending').textContent = counts.pending;
+  $('#cntFbTabConfirmed').textContent = counts.confirmed;
+  $('#cntFbTabRejected').textContent = counts.rejected;
+  $('#cntFbTabAll').textContent = counts.all;
+  const badge = $('#cntFbPending');
+  badge.hidden = counts.pending === 0;
+  badge.textContent = counts.pending;
 }
 
 async function loadFeedback() {
   const box = $('#feedbackResults');
   box.innerHTML = `<small>${t('불러오는 중…')}</small>`;
   try {
-    const { items, total } = await api('/api/admin/feedback?limit=200');
+    const q = new URLSearchParams({ limit: '200' });
+    if (fbTab !== 'all') q.set('status', fbTab);
+    const { items, total, counts } = await api('/api/admin/feedback?' + q.toString());
+    renderFbTabCounts(counts);
     renderFeedback(items, total);
   } catch (e) {
     box.innerHTML = `<small>${t('불러오지 못했습니다: ')}${esc(e.message)}</small>`;
@@ -1935,7 +1973,7 @@ async function loadFeedback() {
 function renderFeedback(items, total) {
   const box = $('#feedbackResults');
   if (!items.length) {
-    box.innerHTML = `<p class="note">${t('피드백이 없습니다.')}</p>`;
+    box.innerHTML = `<p class="note">${t(FB_EMPTY_KO[fbTab] || FB_EMPTY_KO.all)}</p>`;
     return;
   }
   const order = { pending: 0, confirmed: 1, rejected: 2 };
@@ -1946,9 +1984,13 @@ function renderFeedback(items, total) {
       const target = x.kind === 'new_defect' ? x.newDefectName : x.kind === 'correct' ? x.correctedDefectName : t('(확인만)');
       const extraRows = [
         x.newDefectDescription ? `<div class="row"><b>${t('새 불량 설명')}</b><span>${esc(x.newDefectDescription)}</span></div>` : '',
-        (x.visualCues || []).length ? `<div class="row"><b>${t('시각 특징')}</b><span>${x.visualCues.map(esc).join(' · ')}</span></div>` : '',
-        x.reviewedBy ? `<div class="row"><b>${t('검토')}</b><span>${esc(x.reviewedBy)} · ${fmtDate(x.reviewedAt)}</span></div>` : ''
+        (x.visualCues || []).length ? `<div class="row"><b>${t('시각 특징')}</b><span>${x.visualCues.map(esc).join(' · ')}</span></div>` : ''
       ].join('');
+      // 검토가 끝난 건은 누가·언제 처리했는지 펼치지 않아도 보이게 한다.
+      const reviewLine =
+        x.status !== 'pending' && (x.reviewedBy || x.reviewedAt)
+          ? `<div class="item-sub fb-review">${t('검토')}: ${esc(x.reviewedBy || '-')} · ${fmtDate(x.reviewedAt)}</div>`
+          : '';
       const goRecordBtn = x.recordId
         ? `<button class="btn small fbGoRecord" data-record-id="${esc(x.recordId)}" style="width:auto;padding:4px 9px;margin-top:4px">${t('🔍 원본 분석 결과 보기')}</button>`
         : '';
@@ -1958,6 +2000,7 @@ function renderFeedback(items, total) {
         <div class="item-main${hasExtra ? ' fb-toggle' : ''}"${hasExtra ? ' role="button" tabindex="0" aria-expanded="false"' : ''}>
           <div class="item-text">${t(FB_KIND_KO[x.kind])} ${esc(x.originalDefectName || '?')} → ${esc(target)}</div>
           <div class="item-sub">${esc(x.submittedBy)} · ${esc(x.processName || '-')} · ${fmtDate(x.at)}${x.note ? ' · ' + t('메모: ') + esc(x.note) : ''}</div>
+          ${reviewLine}
           ${(x.imageUrls || []).length ? `<div class="shots fb-shots">${x.imageUrls.map((u) => `<a href="${safeUrl(u)}" target="_blank" rel="noopener"><img src="${safeUrl(u)}" alt=""></a>`).join('')}</div>` : ''}
           <div class="item-meta">
             <span class="tag ${x.status === 'confirmed' ? 'proc' : x.status === 'rejected' ? 'high' : 'medium'}">${t(FB_STATUS_KO[x.status])}</span>
@@ -1969,7 +2012,7 @@ function renderFeedback(items, total) {
         <div class="nowrap" style="display:flex;flex-direction:column;gap:4px">
           ${x.status !== 'confirmed' ? `<button class="btn small fbConfirm" style="width:auto;padding:4px 9px">${t('확정')}</button>` : ''}
           ${x.status !== 'rejected' ? `<button class="btn small fbReject" style="width:auto;padding:4px 9px">${t('거부')}</button>` : ''}
-          ${x.kind === 'new_defect' && !x.addedToKb ? `<button class="btn small primary fbAddKb" style="width:auto;padding:4px 9px">${t('KB 등록')}</button>` : ''}
+          ${x.kind === 'new_defect' && !x.addedToKb && x.status !== 'rejected' ? `<button class="btn small primary fbAddKb" style="width:auto;padding:4px 9px">${t('KB 등록')}</button>` : ''}
         </div>
       </div>`;
     })
@@ -2029,9 +2072,8 @@ async function decideFeedback(id, status) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ status })
     });
-    toast(status === 'confirmed' ? t('확정했습니다.') : t('거부했습니다.'));
+    toast(status === 'confirmed' ? t('확정했습니다. 「확정됨」 탭에서 볼 수 있습니다.') : t('거부했습니다. 「거부됨」 탭에서 볼 수 있습니다.'));
     loadFeedback();
-    refreshFbPendingCount();
   } catch (e) {
     toast(e.message, true);
   }
@@ -2169,6 +2211,7 @@ function bindStaticEvents() {
     switchUsersTab('signup');
   });
   $$('#usersTabs .tab').forEach((b) => b.addEventListener('click', () => switchUsersTab(b.dataset.utab)));
+  $$('#fbTabs .tab').forEach((b) => b.addEventListener('click', () => switchFeedbackTab(b.dataset.ftab)));
   $('#btnActFilter').addEventListener('click', loadActivity);
   $('#btnUsersRefresh').addEventListener('click', () => {
     if (usersTab === 'signup') loadUsers();

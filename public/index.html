@@ -268,6 +268,12 @@
     </div>
     <div class="modal-body" id="feedbackBody" data-utab-body="feedback" hidden>
       <p class="note" style="margin-bottom:12px" data-i18n>사용자가 확인·수정·제안한 판정입니다. 확정하면 다음 사진판독 시 참고자료로 자동 활용됩니다.</p>
+      <div class="tabs sub" id="fbTabs">
+        <button class="tab active" data-ftab="pending"><span data-i18n>검토 대기</span> <span class="cnt" id="cntFbTabPending">0</span></button>
+        <button class="tab" data-ftab="confirmed"><span data-i18n>확정됨</span> <span class="cnt" id="cntFbTabConfirmed">0</span></button>
+        <button class="tab" data-ftab="rejected"><span data-i18n>거부됨</span> <span class="cnt" id="cntFbTabRejected">0</span></button>
+        <button class="tab" data-ftab="all"><span data-i18n>전체</span> <span class="cnt" id="cntFbTabAll">0</span></button>
+      </div>
       <div id="feedbackResults"><small data-i18n>불러오는 중…</small></div>
     </div>
     <footer>
