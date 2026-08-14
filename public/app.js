@@ -164,6 +164,12 @@ const I18N_EN = {
   '기본 내장': 'Built-in default',
   '수록 내용': 'Contents',
   '업데이트 서버': 'Update Server',
+  '프로그램 포함본': 'Bundled with App',
+  '없음': 'None',
+  '가져올 곳': 'Source',
+  '프로그램에 포함된 지식베이스': 'Knowledge base bundled with the app',
+  '인터넷 업데이트 서버': 'Online update server',
+  '인터넷 업데이트 서버 확인 실패: ': 'Could not reach the online update server: ',
   '미설정': 'Not configured',
   '보관 백업': 'Stored Backups',
   '업데이트 서버가 설정되지 않았습니다. [설정]에서 매니페스트 URL을 등록하면 인터넷을 통해 지식베이스를 자동으로 갱신할 수 있습니다.':
@@ -1561,7 +1567,8 @@ const ACTIVITY_ACTION_KO = {
   item_detail: '상세정보 조회',
   kb_view: '지식베이스 조회',
   feedback: '학습 피드백',
-  feedback_delete: '학습 피드백 삭제'
+  feedback_delete: '학습 피드백 삭제',
+  kb_update: '지식베이스 업데이트'
 };
 
 /* 행을 펼쳤을 때 보여줄 항목 — 표시 순서대로 나열한다. */
@@ -1764,10 +1771,15 @@ async function loadUpdateStatus(extra) {
       <div class="upd-row"><b>${t('지식베이스 버전')}</b><span>v${esc(s.kbVersion)}</span></div>
       <div class="upd-row"><b>${t('최종 갱신')}</b><span>${s.updatedAt ? fmtDate(s.updatedAt) : t('기본 내장')}</span></div>
       <div class="upd-row"><b>${t('수록 내용')}</b><span>${LANG === 'en' ? `${s.counts.processes} processes / ${s.counts.defects} defects` : `공정 ${s.counts.processes}종 / 불량 ${s.counts.defects}건`}</span></div>
+      <div class="upd-row"><b>${t('프로그램 포함본')}</b><span>${s.bundledVersion ? 'v' + esc(s.bundledVersion) : `<i>${t('없음')}</i>`}</span></div>
       <div class="upd-row"><b>${t('업데이트 서버')}</b><span>${s.manifestUrl ? esc(s.manifestUrl) : `<i>${t('미설정')}</i>`}</span></div>
       <div class="upd-row"><b>${t('보관 백업')}</b><span>${s.backups}${LANG === 'en' ? '' : '개'}</span></div>
       ${extra || ''}
-      ${!s.manifestUrl ? `<p class="note" style="margin-top:12px">${t('업데이트 서버가 설정되지 않았습니다. [설정]에서 매니페스트 URL을 등록하면 인터넷을 통해 지식베이스를 자동으로 갱신할 수 있습니다.')}</p>` : ''}`;
+      ${
+        !s.manifestUrl && !s.bundledVersion
+          ? `<p class="note" style="margin-top:12px">${t('업데이트 서버가 설정되지 않았습니다. [설정]에서 매니페스트 URL을 등록하면 인터넷을 통해 지식베이스를 자동으로 갱신할 수 있습니다.')}</p>`
+          : ''
+      }`;
   } catch (e) {
     $('#updBody').innerHTML = `<p class="note">${esc(e.message)}</p>`;
   }
@@ -1777,11 +1789,17 @@ async function checkUpdate() {
   $('#updBody').innerHTML = `<div class="loading"><div class="spinner"></div><p>${t('업데이트 서버 확인 중…')}</p></div>`;
   try {
     const r = await api('/api/kb/check', { method: 'POST' });
-    const box = r.updateAvailable
-      ? `<p class="note" style="margin-top:12px;background:#e7f1ea;color:#16785a">
-          ✅ ${LANG === 'en' ? `New version v${esc(r.latestVersion)} available (current v${esc(r.currentVersion)}) · ${r.fileCount} files` : `새 버전 v${esc(r.latestVersion)} 이 있습니다 (현재 v${esc(r.currentVersion)}) · 파일 ${r.fileCount}개`}<br>${esc(r.notes || '')}
+    const from = r.sourceLabel ? `<br>${t('가져올 곳')}: ${esc(t(r.sourceLabel))}` : '';
+    // 인터넷 확인은 실패했지만 프로그램 포함본으로 진행하는 경우
+    const onlineWarn = r.onlineError
+      ? `<p class="note" style="margin-top:8px;background:#fff8e6;color:#7a5b12">${t('인터넷 업데이트 서버 확인 실패: ')}${esc(r.onlineError)}</p>`
+      : '';
+    const box =
+      (r.updateAvailable
+        ? `<p class="note" style="margin-top:12px;background:#e7f1ea;color:#16785a">
+          ✅ ${LANG === 'en' ? `New version v${esc(r.latestVersion)} available (current v${esc(r.currentVersion)}) · ${r.fileCount} files` : `새 버전 v${esc(r.latestVersion)} 이 있습니다 (현재 v${esc(r.currentVersion)}) · 파일 ${r.fileCount}개`}${from}<br>${esc(r.notes || '')}
          </p>`
-      : `<p class="note" style="margin-top:12px">${t('최신 버전을 사용 중입니다')} (v${esc(r.currentVersion)}).</p>`;
+        : `<p class="note" style="margin-top:12px">${t('최신 버전을 사용 중입니다')} (v${esc(r.currentVersion)}).</p>`) + onlineWarn;
     $('#btnUpdApply').disabled = !r.updateAvailable;
     await loadUpdateStatus(box);
   } catch (e) {
@@ -1804,7 +1822,9 @@ async function applyUpdate() {
     fillProcFilter();
     renderKbList();
     await loadUpdateStatus(`<p class="note" style="margin-top:12px;background:#e7f1ea;color:#16785a">${
-      LANG === 'en' ? `${r.files.length} files updated · backup ${esc(r.backupId)}` : `갱신 파일 ${r.files.length}개 · 백업 ${esc(r.backupId)}`
+      LANG === 'en'
+        ? `${r.files.length} files updated from ${esc(r.sourceLabel || '')} · backup ${esc(r.backupId)}`
+        : `갱신 파일 ${r.files.length}개 (${esc(r.sourceLabel || '')}) · 백업 ${esc(r.backupId)}`
     }</p>`);
   } catch (e) {
     await loadUpdateStatus(`<p class="note" style="margin-top:12px;background:#fdeceb;color:#c8322c">${esc(e.message)}</p>`);

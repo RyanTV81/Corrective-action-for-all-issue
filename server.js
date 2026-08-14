@@ -658,7 +658,7 @@ app.post(
       username: req.authUser,
       role: req.authRole,
       action: 'kb_update',
-      label: `지식베이스 업데이트: ${out.fromVersion || ''} → ${out.toVersion || ''}`,
+      label: `지식베이스 업데이트: ${out.fromVersion || ''} → ${out.toVersion || ''}${out.sourceLabel ? ` (${out.sourceLabel})` : ''}`,
       detail: { fromVersion: out.fromVersion || '', toVersion: out.toVersion || '', applied: Boolean(out.applied) },
       ip: req.ip
     });
