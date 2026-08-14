@@ -372,6 +372,14 @@ const I18N_EN = {
   '공정공통': 'Process common',
   '공통(4M)': 'Common (4M)',
   'AI·웹조사': 'AI · Web research',
+  '축적 웹조사': 'Accumulated research',
+  '학습 등록': 'Admin-registered',
+  '쌓인 조사 내용': 'Accumulated Research',
+  '쌓인 참고 자료 ': 'Accumulated references ',
+  '이 내용은 인터넷 조사를 켜지 않아도 다음 조회에서 계속 함께 나옵니다.':
+    'This is reused on every later lookup, even when web research is turned off.',
+  '쌓인 조사 반영': 'Accumulated research applied',
+  '학습 등록 불량': 'Admin-registered defect',
   '자세히 ›': 'Details ›',
   '시점: ': 'When: ',
   '담당: ': 'Owner: ',
@@ -811,6 +819,8 @@ function renderResult(r) {
     `<span class="tag">${t('판정 신뢰도 ')}${Math.round((j.confidence || 0) * 100)}%</span>`,
     r.usedAI ? `<span class="tag ai">${t('AI 판독')}</span>` : '',
     r.web ? `<span class="tag ai">${t('인터넷 조사')}</span>` : '',
+    r.knowledge ? `<span class="tag ai">${t('쌓인 조사 반영')}</span>` : '',
+    d && d.learned ? `<span class="tag proc">${t('학습 등록 불량')}</span>` : '',
     d ? '' : `<span class="tag medium">${t('KB 직접 매칭 실패')}</span>`
   ].join('');
 
@@ -1083,7 +1093,8 @@ function refHtml(r) {
   const kbCands = cands.length
     ? `<div class="card"><h4>${t('지식베이스 매칭 후보')}</h4><div class="candidates">${cands
         .map(
-          (c) => `<div class="cand"><b>${esc(c.name)}</b><span>${esc(c.processName)} · ${t(sev(c.severity).ko)} · ${t('점수 ')}${c.score}</span></div>`
+          (c) =>
+            `<div class="cand"><b>${esc(c.name)}${c.learned ? ` <span class="badge">${t('학습 등록')}</span>` : ''}</b><span>${esc(c.processName)} · ${t(sev(c.severity).ko)} · ${t('점수 ')}${c.score}</span></div>`
         )
         .join('')}</div>
         ${cands[0] && cands[0].reasons ? `<p class="hint">${t('1순위 매칭 근거: ')}${cands[0].reasons.map(esc).join(', ')}</p>` : ''}</div>`
@@ -1093,6 +1104,23 @@ function refHtml(r) {
     ? `<div class="card"><h4>${t('공정 자동 추정')}</h4><div class="candidates">${r.processGuesses
         .map((g) => `<div class="cand"><b>${esc(g.name)}</b><span>${t('점수 ')}${g.score}${g.hits ? ' · ' + g.hits.map(esc).join(', ') : ''}</span></div>`)
         .join('')}</div></div>`
+    : '';
+
+  // 지난 조사에서 쌓아둔 내용 — 이번에 인터넷 조사를 하지 않았을 때 특히 중요한 정보다
+  const k = r.knowledge;
+  const knowledgeCard = k
+    ? `<div class="card"><h4>${t('쌓인 조사 내용')}</h4>
+        <p class="hint">${
+          LANG === 'en'
+            ? `Reused from ${k.runs} past web research run(s) · causes ${k.counts.causes} / actions ${k.counts.actions} / measures ${k.counts.measures}`
+            : `지난 인터넷 조사 ${k.runs}회에서 쌓인 내용 · 원인 ${k.counts.causes} / 조치 ${k.counts.actions} / 대책 ${k.counts.measures}건`
+        }${k.updatedAt ? ' · ' + fmtDate(k.updatedAt) : ''}</p>
+        ${!k.freshRun && k.summary ? `<p style="margin-top:8px">${esc(k.summary)}</p>` : ''}
+        ${(k.sources || []).length ? `<div class="sources"><h5>${t('쌓인 참고 자료 ')}${k.sources.length}${t('건')}</h5>${k.sources
+            .map((s) => `<a href="${safeUrl(s.url)}" target="_blank" rel="noopener">${esc(s.title || s.url)}</a>`)
+            .join('')}</div>` : ''}
+        <p class="note" style="margin-top:8px">${t('이 내용은 인터넷 조사를 켜지 않아도 다음 조회에서 계속 함께 나옵니다.')}</p>
+      </div>`
     : '';
 
   const webCard = web
@@ -1111,7 +1139,7 @@ function refHtml(r) {
     ? `<div class="card"><h4>${t('이 불량의 검출 방법')}</h4><p>${esc(r.defect.detect)}</p></div>`
     : '';
 
-  return shots + vision + kbCands + guesses + detect + webCard;
+  return shots + vision + kbCands + guesses + detect + webCard + knowledgeCard;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1284,6 +1312,7 @@ async function openHistoryDetail(id) {
       defect: rep.defect || null,
       vision: rep.vision || null,
       web: rep.web || null,
+      knowledge: rep.knowledge || null,
       judgement: rep.judgement || null,
       candidates: rep.candidates || [],
       causes: rep.causes || [],
