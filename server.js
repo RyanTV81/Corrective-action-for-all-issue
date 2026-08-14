@@ -20,6 +20,7 @@ const auth = require('./lib/auth');
 const users = require('./lib/users');
 const activity = require('./lib/activity');
 const feedback = require('./lib/feedback');
+const insights = require('./lib/insights');
 const security = require('./lib/security');
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -615,6 +616,40 @@ app.post(
     res.json({ ok: true, defect });
   })
 );
+
+/* ------------------------------------------------------------------ */
+/* 축적된 인터넷 조사 내용 (관리자 전용)                                   */
+/* ------------------------------------------------------------------ */
+
+app.get('/api/admin/insights', auth.requireAdmin, (req, res) => {
+  res.json(insights.list(req.query));
+});
+
+/** 웹에서 가져온 내용이라 잘못된 것이 섞일 수 있다 — 불량 단위로 통째로 지운다 */
+app.delete('/api/admin/insights/:key', auth.requireAdmin, (req, res) => {
+  const rec = insights.remove(req.params.key);
+  if (!rec) return res.status(404).json({ error: '쌓인 조사 내용을 찾을 수 없습니다' });
+  activity.log({
+    username: req.authUser,
+    role: 'admin',
+    action: 'insight_delete',
+    label: `[${rec.processName || '-'}] ${rec.defectName || rec.key} — 조사 ${rec.runs || 0}회분`,
+    detail: { defectName: rec.defectName || '', processName: rec.processName || '' },
+    ip: req.ip
+  });
+  res.json({ ok: true });
+});
+
+/** 항목 한 줄만 지우기 (원인·조치·대책·참고자료) */
+app.post('/api/admin/insights/:key/remove-item', auth.requireAdmin, (req, res) => {
+  const { list, text } = req.body || {};
+  if (typeof list !== 'string' || typeof text !== 'string' || !text.trim()) {
+    return res.status(400).json({ error: 'list, text 가 필요합니다' });
+  }
+  const rec = insights.removeItem(req.params.key, list, text);
+  if (!rec) return res.status(404).json({ error: '지울 항목을 찾을 수 없습니다' });
+  res.json({ ok: true });
+});
 
 /* ------------------------------------------------------------------ */
 /* 설정                                                                 */

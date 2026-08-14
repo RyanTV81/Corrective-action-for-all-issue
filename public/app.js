@@ -184,6 +184,20 @@ const I18N_EN = {
   '가입 승인': 'Signup Approval',
   '활동 이력': 'Activity Log',
   '학습 피드백': 'Learning Feedback',
+  '쌓인 조사': 'Accumulated',
+  '인터넷 조사에서 얻어 쌓아둔 내용입니다. 같은 불량을 다시 조회할 때 자동으로 함께 나옵니다. 웹에서 가져온 내용이라 사실과 다른 것이 섞일 수 있으니, 맞지 않는 항목은 지워주세요.':
+    'Findings accumulated from web research, reused automatically on later lookups of the same defect. Web content can be wrong — delete anything that does not fit.',
+  '아직 쌓인 조사 내용이 없습니다. 분석할 때 [인터넷 조사]를 켜면 여기에 쌓입니다.':
+    'Nothing accumulated yet. Turn on [Web research] when analyzing and findings will collect here.',
+  '이 줄 삭제': 'Delete this line',
+  '전체 삭제': 'Delete all',
+  '이 불량에 쌓인 조사 내용을 모두 삭제할까요?': 'Delete everything accumulated for this defect?',
+  '참고 자료': 'References',
+  '자료': 'Refs',
+  '원인': 'Causes',
+  '조치': 'Actions',
+  '대책': 'Measures',
+  '쌓인 조사 삭제': 'Accumulated research deleted',
   '전체 사용자': 'All Users',
   '전체 활동': 'All Activities',
   '로그인': 'Login',
@@ -1597,7 +1611,8 @@ const ACTIVITY_ACTION_KO = {
   kb_view: '지식베이스 조회',
   feedback: '학습 피드백',
   feedback_delete: '학습 피드백 삭제',
-  kb_update: '지식베이스 업데이트'
+  kb_update: '지식베이스 업데이트',
+  insight_delete: '쌓인 조사 삭제'
 };
 
 /* 행을 펼쳤을 때 보여줄 항목 — 표시 순서대로 나열한다. */
@@ -1640,6 +1655,7 @@ function switchUsersTab(tab) {
   $$('#mdUsers [data-utab-body]').forEach((el) => (el.hidden = el.dataset.utabBody !== tab));
   if (tab === 'signup') loadUsers();
   else if (tab === 'activity') loadActivity();
+  else if (tab === 'insights') loadInsights();
   else switchFeedbackTab(fbTab);
 }
 
@@ -2271,6 +2287,151 @@ async function submitKbAdd() {
 }
 
 /* ------------------------------------------------------------------ */
+/* 쌓인 인터넷 조사 내용 (관리자 전용)                                     */
+/* ------------------------------------------------------------------ */
+
+const INSIGHT_LIST_KO = { causes: '원인', actions: '조치', measures: '대책' };
+
+async function loadInsights() {
+  const box = $('#insightResults');
+  box.innerHTML = `<small>${t('불러오는 중…')}</small>`;
+  try {
+    const { items, total, stats } = await api('/api/admin/insights?limit=100');
+    const badge = $('#cntInsights');
+    badge.hidden = !stats.defects;
+    badge.textContent = stats.defects;
+    renderInsights(items, total, stats);
+  } catch (e) {
+    box.innerHTML = `<small>${t('불러오지 못했습니다: ')}${esc(e.message)}</small>`;
+  }
+}
+
+/** 항목 한 줄 — 옆의 × 로 그 줄만 지운다 */
+function insightItemHtml(key, listName, text, extra) {
+  return `<div class="ins-item">
+    <button class="ins-x insDelItem" data-key="${esc(key)}" data-list="${esc(listName)}" data-text="${esc(text)}"
+      title="${t('이 줄 삭제')}" aria-label="${t('이 줄 삭제')}">&times;</button>
+    <span>${esc(text)}${extra ? ` <i class="ins-tag">${esc(extra)}</i>` : ''}</span>
+  </div>`;
+}
+
+function renderInsights(items, total, stats) {
+  const box = $('#insightResults');
+  if (!items.length) {
+    box.innerHTML = `<p class="note">${t('아직 쌓인 조사 내용이 없습니다. 분석할 때 [인터넷 조사]를 켜면 여기에 쌓입니다.')}</p>`;
+    return;
+  }
+
+  box.innerHTML = `<div class="item-list">${items
+    .map((x) => {
+      const counts = ['causes', 'actions', 'measures']
+        .map((k) => `<span class="badge">${t(INSIGHT_LIST_KO[k])} ${(x[k] || []).length}</span>`)
+        .join('');
+      const sources = (x.sources || []).length
+        ? `<div class="ins-group"><b>${t('참고 자료')}</b>${x.sources
+            .map(
+              (s) => `<div class="ins-item">
+                <button class="ins-x insDelItem" data-key="${esc(x.key)}" data-list="sources" data-text="${esc(s.url)}"
+                  title="${t('이 줄 삭제')}" aria-label="${t('이 줄 삭제')}">&times;</button>
+                <span><a href="${safeUrl(s.url)}" target="_blank" rel="noopener">${esc(s.title || s.url)}</a></span>
+              </div>`
+            )
+            .join('')}</div>`
+        : '';
+
+      const groups = ['causes', 'actions', 'measures']
+        .filter((k) => (x[k] || []).length)
+        .map(
+          (k) => `<div class="ins-group"><b>${t(INSIGHT_LIST_KO[k])}</b>${x[k]
+            .map((it) => insightItemHtml(x.key, k, it.text, it.cat || it.when || it.type || ''))
+            .join('')}</div>`
+        )
+        .join('');
+
+      return `<div class="item" data-key="${esc(x.key)}" style="align-items:flex-start">
+        <div class="item-main ins-toggle" role="button" tabindex="0" aria-expanded="false">
+          <div class="item-text">${esc(x.defectName || x.key)}</div>
+          <div class="item-sub">${esc(x.processName || x.processId || '-')} · ${
+            LANG === 'en' ? `${x.runs} research run(s)` : `조사 ${x.runs}회`
+          }${x.updatedAt ? ' · ' + fmtDate(x.updatedAt) : ''}</div>
+          <div class="item-meta">${counts}<span class="badge">${t('자료')} ${(x.sources || []).length}</span>
+            <span class="fb-hint">${t('▾ 상세보기')}</span></div>
+          <div class="fb-extra" hidden>
+            ${x.summary ? `<p class="hint" style="margin-bottom:8px">${esc(x.summary)}</p>` : ''}
+            ${groups}${sources}
+          </div>
+        </div>
+        <div class="nowrap">
+          <button class="btn small insDelAll" style="width:auto;padding:4px 9px">${t('전체 삭제')}</button>
+        </div>
+      </div>`;
+    })
+    .join('')}</div>
+    <p class="note" style="margin-top:10px">${
+      LANG === 'en'
+        ? `${items.length} of ${total} defects · ${stats.runs} research runs · ${stats.sources} references`
+        : `불량 ${items.length}종 (전체 ${total}종) · 누적 조사 ${stats.runs}회 · 참고 자료 ${stats.sources}건`
+    }</p>`;
+
+  $$('.ins-toggle', box).forEach((el) => {
+    const extra = el.querySelector('.fb-extra');
+    const hint = el.querySelector('.fb-hint');
+    const toggle = () => {
+      extra.hidden = !extra.hidden;
+      el.setAttribute('aria-expanded', String(!extra.hidden));
+      if (hint) hint.textContent = t(extra.hidden ? '▾ 상세보기' : '▴ 접기');
+    };
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('a, button')) return;
+      toggle();
+    });
+    el.addEventListener('keydown', (e) => {
+      if (e.target.closest('a, button')) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggle();
+      }
+    });
+  });
+
+  $$('.insDelAll', box).forEach((b) =>
+    b.addEventListener('click', (e) => {
+      const row = e.target.closest('[data-key]');
+      const name = row.querySelector('.item-text').textContent;
+      if (!confirm(t('이 불량에 쌓인 조사 내용을 모두 삭제할까요?') + '\n\n' + name)) return;
+      deleteInsight(row.dataset.key);
+    })
+  );
+
+  $$('.insDelItem', box).forEach((b) =>
+    b.addEventListener('click', () => deleteInsightItem(b.dataset.key, b.dataset.list, b.dataset.text))
+  );
+}
+
+async function deleteInsight(key) {
+  try {
+    await api('/api/admin/insights/' + encodeURIComponent(key), { method: 'DELETE' });
+    toast(t('삭제했습니다.'));
+    loadInsights();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+async function deleteInsightItem(key, list, text) {
+  try {
+    await api('/api/admin/insights/' + encodeURIComponent(key) + '/remove-item', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ list, text })
+    });
+    loadInsights();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* 모달 · 이벤트                                                        */
 /* ------------------------------------------------------------------ */
 
@@ -2348,6 +2509,7 @@ function bindStaticEvents() {
   $('#btnUsersRefresh').addEventListener('click', () => {
     if (usersTab === 'signup') loadUsers();
     else if (usersTab === 'activity') loadActivity();
+    else if (usersTab === 'insights') loadInsights();
     else loadFeedback();
   });
   $('#fbKindCorrect').addEventListener('change', toggleFbKind);

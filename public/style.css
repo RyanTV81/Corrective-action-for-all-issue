@@ -355,6 +355,18 @@ input:focus, textarea:focus, select:focus {
 .fb-extra .row { display: flex; gap: 8px; margin-bottom: 5px; font-size: 12.5px; }
 .fb-extra .row b { flex: 0 0 92px; color: var(--ink-2); font-weight: 700; }
 
+/* 쌓인 조사 내용 — 줄 단위로 지울 수 있게 × 를 붙인다 */
+.ins-group { margin-bottom: 10px; }
+.ins-group > b { display: block; font-size: 11.5px; color: var(--ink-2); margin-bottom: 4px; }
+.ins-item { display: flex; gap: 7px; align-items: flex-start; font-size: 12.5px; padding: 2px 0; }
+.ins-item > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ins-tag { color: var(--ink-3); font-size: 11px; font-style: normal; }
+.ins-x {
+  flex: 0 0 18px; height: 18px; line-height: 1; padding: 0; cursor: pointer;
+  border: 1px solid var(--line); background: #fff; color: var(--ink-3); border-radius: 4px; font-size: 13px;
+}
+.ins-x:hover { border-color: var(--high); color: var(--high); }
+
 .result-actions {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line);
