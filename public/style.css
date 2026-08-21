@@ -272,6 +272,23 @@ input:focus, textarea:focus, select:focus {
   padding: 9px 13px; border-radius: 7px; margin-bottom: 12px; font-size: 12.5px;
 }
 
+/* 판정 확인 요청 — 다른 카드와 섞이지 않게 눈에 띄는 색을 쓰고, 긴 목록을 읽는 동안에도
+   화면 위쪽에 붙어 있게 해서 놓치지 않도록 한다 */
+.fb-prompt {
+  position: sticky;
+  top: 74px;
+  z-index: 20;
+  border: 1px solid #d9d0f5;
+  border-left: 5px solid #5b46b8;
+  border-radius: var(--radius);
+  padding: 13px 17px;
+  margin-bottom: 14px;
+  background: #f7f5fd;
+  box-shadow: var(--shadow);
+}
+.fb-prompt h4 { font-size: 14.5px; margin-bottom: 4px; }
+@media (max-width: 1080px) { .fb-prompt { position: static; } }
+
 /* 탭 */
 .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--line); margin-bottom: 14px; flex-wrap: wrap; }
 .tab {
@@ -439,7 +456,7 @@ input:focus, textarea:focus, select:focus {
 
 /* ================= 인쇄 ================= */
 @media print {
-  .topbar, .input-panel, .tabs, .result-actions, .modal, .toast, .empty, .loading { display: none !important; }
+  .topbar, .input-panel, .tabs, .result-actions, .fb-prompt, .modal, .toast, .empty, .loading { display: none !important; }
   body { background: #fff; font-size: 11pt; }
   .layout { display: block; padding: 0; max-width: none; }
   .panel { border: 0; box-shadow: none; padding: 0; }

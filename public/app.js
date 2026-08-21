@@ -884,11 +884,11 @@ function renderResult(r) {
     </div>`;
 
   const fbCard = r.recordId
-    ? `<div class="card" id="fbPrompt">
-        <h4>${t('판정이 정확한가요?')}</h4>
+    ? `<div class="fb-prompt" id="fbPrompt">
+        <h4>❓ ${t('판정이 정확한가요?')}</h4>
         <p class="note" style="margin-bottom:10px">${t('촬영 각도·조명 때문에 AI가 다르게 볼 수 있습니다. 확인해주시면 다음 분석부터 참고합니다.')}</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn" id="btnFbConfirm">${t('👍 정확함')}</button>
+          <button class="btn primary" id="btnFbConfirm">${t('👍 정확함')}</button>
           <button class="btn" id="btnFbCorrect">${t('✏️ 다릅니다 — 수정하기')}</button>
         </div>
       </div>`
