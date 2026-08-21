@@ -439,12 +439,14 @@ app.post(
 
 app.get('/api/stats', (req, res) => res.json(store.stats()));
 
-app.get('/api/history', (req, res) => res.json(store.list(req.query)));
+app.get('/api/history', (req, res) =>
+  res.json(store.list(req.query, { isAdmin: req.authRole === 'admin', username: req.authUser }))
+);
 
 app.get(
   '/api/history/:id',
   wrap(async (req, res) => {
-    const r = store.get(req.params.id);
+    const r = store.get(req.params.id, { isAdmin: req.authRole === 'admin', username: req.authUser });
     if (!r) return res.status(404).json({ error: '이력을 찾을 수 없습니다' });
     activity.log({
       username: req.authUser,
