@@ -278,13 +278,12 @@ input:focus, textarea:focus, select:focus {
   position: sticky;
   top: 74px;
   z-index: 20;
-  border: 1px solid #d9d0f5;
-  border-left: 5px solid #5b46b8;
+  border: 2px solid #5b46b8;
   border-radius: var(--radius);
-  padding: 13px 17px;
+  padding: 12px 16px;
   margin-bottom: 14px;
   background: #f7f5fd;
-  box-shadow: var(--shadow);
+  box-shadow: 0 2px 12px rgba(91, 70, 184, .18);
 }
 .fb-prompt h4 { font-size: 14.5px; margin-bottom: 4px; }
 @media (max-width: 1080px) { .fb-prompt { position: static; } }
